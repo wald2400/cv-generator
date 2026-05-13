@@ -1,0 +1,17 @@
+{
+  "name": "CV Studio",
+  "short_name": "CV Studio",
+  "description": "Currículum en PDF desde el navegador",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

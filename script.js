@@ -1,84 +1,175 @@
 /**
- * CV Generator Pro — script principal
- * Premium: verificación por código tras pago (Mercado Pago abre en nueva pestaña).
- * Plantillas: HTML + CSS inline para coherencia en vista previa y PDF (html2canvas).
+ * CV Studio — generador de CV para web (proyecto estático).
+ * Plantillas: Editorial, Corporativo, Minimal (HTML + CSS inline para PDF).
+ * Premium: Mercado Pago + sesión UUID (sin backend; ver README y ENTREGA.md).
+ *
+ * @author [Tu nombre]
+ * @see ENTREGA.md — documentación para entrega académica
  */
 
-/** Pago real Premium ($1 MXN) — Mercado Pago */
-const MERCADOPAGO_URL = "https://mpago.la/2681dcq";
+"use strict";
 
+const MERCADOPAGO_URL = "https://mpago.la/2681dcq";
 const OPENAI_MODEL = "gpt-3.5-turbo";
 const STORAGE_CV = "cvData";
+const SESSION_MP_TOKEN = "cv_mp_token";
+const SESSION_MP_STARTED = "cv_mp_started";
 
-/** Códigos válidos para activar premium (demo académica + posibles extensiones). */
-const CODIGOS_PREMIUM_VALIDOS = ["PREMIUM2024", "CVPRO-DEMO", "DEMO-PREMIUM"];
+/** Ancho lógico del CV en px (≈ A4 a ~96dpi, aspecto sobrio en pantalla y PDF). */
+const CV_PAGE_WIDTH_PX = 680;
+
+const PDF_MARGIN_MM = 12;
+const PDF_SCALE = 2;
+const PDF_FOOTER_FREE_MM = 9;
+
+const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const STORAGE_THEME = "cvStudioTheme";
+const EXPORT_JSON_VERSION = 1;
+const PREVIEW_PLACEHOLDER =
+    "Completa los datos y pulsa «Actualizar vista».";
+
+/** URLs blob usadas dentro de #preview; se revocan al regenerar para liberar memoria. */
+let previewBlobUrls = [];
 
 let plantillaCustomURL = "";
+let modalPagoMostrado = false;
 
-document.getElementById("plantillaCustom").addEventListener("change", function (e) {
-    const file = e.target.files[0];
-    if (file) {
-        plantillaCustomURL = URL.createObjectURL(file);
-    }
-});
+const inputPlantillaCustom = document.getElementById("plantillaCustom");
+if (inputPlantillaCustom) {
+    inputPlantillaCustom.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (plantillaCustomURL) {
+            try {
+                URL.revokeObjectURL(plantillaCustomURL);
+            } catch (_) {}
+            plantillaCustomURL = "";
+        }
+        if (file) {
+            plantillaCustomURL = URL.createObjectURL(file);
+        }
+        generarCV(true);
+    });
+}
+
+const inputFoto = document.getElementById("foto");
+if (inputFoto) {
+    inputFoto.addEventListener("change", function () {
+        generarCV(true);
+    });
+}
+
+const inputImportJson = document.getElementById("inputImportJson");
+if (inputImportJson) {
+    inputImportJson.addEventListener("change", importarBorradorJSON);
+}
 
 function esPremium() {
     return localStorage.getItem("premium") === "true";
 }
 
-/** Abre el checkout de Mercado Pago en una nueva pestaña. */
-function activarPremium() {
-    window.open(MERCADOPAGO_URL, "_blank", "noopener,noreferrer");
+function generarTokenSesionPago() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return "mp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 12);
 }
 
-/**
- * Activa premium solo si el código coincide con la lista permitida.
- * Elimina la activación “falsa” sin comprobar nada.
- */
-function verificarCodigoPremium() {
-    const input = document.getElementById("codigoPremium");
-    if (!input) return;
-    const codigo = input.value.trim().toUpperCase();
-    if (!codigo) {
-        alert("Ingresa el código de activación que recibiste tras el pago (o el código de prueba académica).");
+function activarPremium() {
+    const token = generarTokenSesionPago();
+    sessionStorage.setItem(SESSION_MP_TOKEN, token);
+    sessionStorage.setItem(SESSION_MP_STARTED, String(Date.now()));
+    modalPagoMostrado = false;
+    window.open(MERCADOPAGO_URL, "_blank", "noopener,noreferrer");
+    const note = document.getElementById("paymentSessionNote");
+    if (note) {
+        note.textContent =
+            "Sesión de pago iniciada. Vuelve a esta pestaña tras pagar y confirma en el aviso.";
+        note.hidden = false;
+    }
+}
+
+function intentarMostrarModalRetornoPago() {
+    if (esPremium()) return;
+    const token = sessionStorage.getItem(SESSION_MP_TOKEN);
+    if (!token || modalPagoMostrado) return;
+    const started = parseInt(sessionStorage.getItem(SESSION_MP_STARTED) || "0", 10);
+    if (Date.now() - started < 2000) return;
+    const modal = document.getElementById("modalPago");
+    if (!modal) return;
+    modal.hidden = false;
+    modalPagoMostrado = true;
+}
+
+function confirmarActivacionPremiumTrasPago() {
+    if (!sessionStorage.getItem(SESSION_MP_TOKEN)) {
+        alert("No hay una sesión de pago pendiente. Pulsa «Activar Premium» para iniciar el pago.");
         return;
     }
-    if (CODIGOS_PREMIUM_VALIDOS.includes(codigo)) {
-        localStorage.setItem("premium", "true");
+    alert("¡Pago recibido! Activando premium…");
+    localStorage.setItem("premium", "true");
+    sessionStorage.removeItem(SESSION_MP_TOKEN);
+    sessionStorage.removeItem(SESSION_MP_STARTED);
+    modalPagoMostrado = false;
+    const modal = document.getElementById("modalPago");
+    if (modal) modal.hidden = true;
+    const note = document.getElementById("paymentSessionNote");
+    if (note) note.hidden = true;
+    actualizarUI();
+    mostrarMensajeExito("Premium activo. Gracias por tu compra.");
+}
+
+function cancelarActivacionPremiumPendiente() {
+    sessionStorage.removeItem(SESSION_MP_TOKEN);
+    sessionStorage.removeItem(SESSION_MP_STARTED);
+    modalPagoMostrado = false;
+    const modal = document.getElementById("modalPago");
+    if (modal) modal.hidden = true;
+}
+
+function restaurarCompra() {
+    if (esPremium()) {
         actualizarUI();
-        alert("✅ Premium activado correctamente. Disfruta todas las funciones.");
-        mostrarMensajeExito("Premium activo. PDF sin marca de agua, sin anuncios e IA desbloqueada.");
-        input.value = "";
+        mostrarMensajeExito("Tu Premium ya está activo en este dispositivo.");
+        alert("Tu compra Premium ya está restaurada en este navegador.");
     } else {
         alert(
-            "Código incorrecto o no reconocido.\n\nSi ya pagaste en Mercado Pago, revisa el correo o el comprobante por el código.\nPara la demostración en clase usa: PREMIUM2024"
+            "No hay una compra Premium activa en este navegador.\n\nSi ya pagaste, pulsa «Activar Premium», completa el pago en Mercado Pago y al volver confirma en el modal."
         );
     }
 }
 
 function mostrarMensajeExito(texto) {
-    const el = document.getElementById("msgExito");
-    if (!el) return;
-    el.textContent = texto;
-    el.hidden = false;
+    const msg = document.getElementById("msgExito");
+    if (!msg) return;
+    msg.textContent = texto;
+    msg.hidden = false;
     clearTimeout(mostrarMensajeExito._t);
     mostrarMensajeExito._t = setTimeout(() => {
-        el.hidden = true;
-    }, 3500);
+        msg.hidden = true;
+    }, 4000);
 }
 
-/** Sincroniza UI con estado premium: body, badge, anuncios, banner de pago, hints IA. */
+function mostrarMensajeError(texto, ms) {
+    const dur = ms == null ? 6000 : ms;
+    const msg = document.getElementById("msgError");
+    if (!msg) {
+        alert(texto);
+        return;
+    }
+    msg.textContent = texto;
+    msg.hidden = false;
+    clearTimeout(mostrarMensajeError._t);
+    mostrarMensajeError._t = setTimeout(() => {
+        msg.hidden = true;
+    }, dur);
+}
+
 function actualizarUI() {
     const premium = esPremium();
     document.body.classList.toggle("is-premium", premium);
 
-    const badge = document.getElementById("badgePremium");
-    if (badge) {
-        badge.style.display = premium ? "inline-block" : "none";
-    }
-
     const adTop = document.getElementById("adTopBanner");
-    if (esPremium()) {
+    if (premium) {
         const ad = document.querySelector(".ad");
         if (ad) ad.style.display = "none";
         if (adTop) adTop.style.display = "none";
@@ -111,10 +202,52 @@ function actualizarUI() {
     }
 }
 
-function seleccionarPlantilla(tipo, elemento) {
-    document.getElementById("plantilla").value = tipo;
-    document.querySelectorAll(".plantilla").forEach((el) => el.classList.remove("activa"));
-    elemento.classList.add("activa");
+document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+        intentarMostrarModalRetornoPago();
+    }
+});
+window.addEventListener("focus", function () {
+    intentarMostrarModalRetornoPago();
+});
+
+function el(id) {
+    return document.getElementById(id);
+}
+
+function revocarBlobsVistaPrevia() {
+    previewBlobUrls.forEach(function (u) {
+        try {
+            URL.revokeObjectURL(u);
+        } catch (_) {}
+    });
+    previewBlobUrls = [];
+}
+
+function registrarBlobVistaPrevia(url) {
+    if (url && String(url).indexOf("blob:") === 0) {
+        previewBlobUrls.push(url);
+    }
+}
+
+function anunciarVistaPrevia(texto) {
+    const node = el("announcerPreview");
+    if (!node) {
+        return;
+    }
+    node.textContent = "";
+    window.requestAnimationFrame(function () {
+        node.textContent = texto;
+    });
+}
+
+function sincronizarAriaPlantillas(tipoActivo) {
+    document.querySelectorAll(".plantilla").forEach(function (btn) {
+        const t = btn.getAttribute("data-tipo");
+        const on = t === tipoActivo;
+        btn.classList.toggle("activa", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
 }
 
 function escapeHtml(s) {
@@ -125,27 +258,63 @@ function escapeHtml(s) {
 }
 
 function obtenerPerfilTexto() {
-    const t = document.getElementById("perfil").value.trim();
+    const perfil = el("perfil");
+    const t = perfil ? perfil.value.trim() : "";
     if (t) return t;
-    return "Persona responsable, con habilidades de trabajo en equipo y orientación a resultados.";
+    return "Profesional con orientación a resultados, trabajo en equipo y comunicación clara.";
 }
 
-/** Valida nombre y correo obligatorios y formato mínimo de correo. */
-function validarFormulario() {
-    const nombre = (document.getElementById("nombre") && document.getElementById("nombre").value.trim()) || "";
-    const correo = (document.getElementById("correo") && document.getElementById("correo").value.trim()) || "";
+function seleccionarPlantilla(tipo, elemento) {
+    const hidden = el("plantilla");
+    if (hidden) hidden.value = tipo;
+    sincronizarAriaPlantillas(tipo);
+}
 
+function validarFormulario(opts) {
+    const o = opts || {};
+    if (!o.omitirExperiencia) {
+        const nombreEl = el("nombre");
+        const correoEl = el("correo");
+        const expEl = el("experiencia");
+        if (nombreEl && typeof nombreEl.reportValidity === "function") {
+            if (!nombreEl.reportValidity()) {
+                return false;
+            }
+            const tituloEl = el("tituloProfesional");
+            if (tituloEl && !tituloEl.reportValidity()) {
+                return false;
+            }
+            if (correoEl && !correoEl.reportValidity()) {
+                return false;
+            }
+            if (expEl && !expEl.reportValidity()) {
+                return false;
+            }
+        }
+    }
+    const nombre = (el("nombre") && el("nombre").value.trim()) || "";
+    const correo = (el("correo") && el("correo").value.trim()) || "";
+    const tituloPuesto = (el("tituloProfesional") && el("tituloProfesional").value.trim()) || "";
+    const experiencia = (el("experiencia") && el("experiencia").value.trim()) || "";
+
+    if (!tituloPuesto) {
+        alert("Completa el puesto o titulación profesional.");
+        return false;
+    }
     if (!nombre) {
-        alert("Por favor completa el campo obligatorio: Nombre completo.");
+        alert("Completa el nombre completo.");
         return false;
     }
     if (!correo) {
-        alert("Por favor completa el campo obligatorio: Correo electrónico.");
+        alert("Completa el correo electrónico.");
         return false;
     }
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo);
-    if (!emailOk) {
-        alert("El correo electrónico no tiene un formato válido (ejemplo: nombre@dominio.com).");
+    if (!REGEX_CORREO.test(correo)) {
+        alert("El correo no tiene un formato válido.");
+        return false;
+    }
+    if (!o.omitirExperiencia && !experiencia) {
+        alert("Completa la experiencia laboral (obligatorio para generar el CV o el PDF).");
         return false;
     }
     return true;
@@ -158,240 +327,367 @@ function habilidadesALista(texto) {
         .filter(Boolean);
 }
 
-/**
- * Construye HTML/CSS inline — plantilla Clásico (acento azul, dos columnas).
- */
-function construirPlantillaClasico(ctx) {
-    const skills = ctx.skillsItems.map((s) => `<div style="font-size:13px;color:#334155;margin:0 0 8px;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:#2563eb;">▸</span>${s}</div>`).join("");
-    const skillsBlock = skills || '<div style="font-size:13px;color:#94a3b8;">Añade habilidades en el formulario</div>';
-    const idiomasBlock = ctx.idiomasHtml
-        ? `<div style="margin-top:20px;"><h3 style="margin:0 0 10px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;">Idiomas</h3><div style="font-size:13px;color:#334155;line-height:1.5;">${ctx.idiomasHtml}</div></div>`
-        : "";
+const W = CV_PAGE_WIDTH_PX;
 
-    return `
-<div class="cv-doc cv-doc--clasico" style="font-family:'Roboto','Open Sans',Arial,sans-serif;background:#ffffff;color:#1e293b;max-width:820px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,0.12);border:1px solid #e2e8f0;">
-  <header style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:28px 32px;border-bottom:4px solid #2563eb;background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);">
-    ${ctx.fotoBlock}
-    <div style="flex:1;min-width:200px;">
-      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#0f172a;letter-spacing:-0.02em;">${ctx.nombre}</h1>
-      <p style="margin:0 0 14px;font-size:15px;color:#2563eb;font-weight:600;">${ctx.titulo}</p>
-      <div style="display:flex;flex-wrap:wrap;gap:14px 22px;font-size:13px;color:#475569;">
-        <span><i class="fa-solid fa-envelope" style="color:#2563eb;margin-right:6px;"></i>${ctx.correo}</span>
-        <span><i class="fa-solid fa-phone" style="color:#2563eb;margin-right:6px;"></i>${ctx.telefono}</span>
-        <span><i class="fa-solid fa-location-dot" style="color:#2563eb;margin-right:6px;"></i>${ctx.ubicacion}</span>
-      </div>
-    </div>
-  </header>
-  <div style="display:flex;flex-wrap:wrap;">
-    <aside style="width:32%;min-width:220px;background:#f1f5f9;padding:24px 20px;border-right:1px solid #e2e8f0;box-sizing:border-box;">
-      <h3 style="margin:0 0 12px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#64748b;">Habilidades</h3>
-      ${skillsBlock}
-      ${idiomasBlock}
-    </aside>
-    <main style="flex:1;min-width:260px;padding:26px 28px;box-sizing:border-box;">
-      <section style="margin-bottom:22px;">
-        <h2 style="margin:0 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#2563eb;border-left:3px solid #2563eb;padding-left:10px;">Perfil</h2>
-        <div style="font-size:14px;line-height:1.65;color:#334155;">${ctx.perfilHtml}</div>
-      </section>
-      <section>
-        <h2 style="margin:0 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#2563eb;border-left:3px solid #2563eb;padding-left:10px;">Experiencia</h2>
-        <div style="font-size:14px;line-height:1.65;color:#334155;">${ctx.expHtml}</div>
-      </section>
-    </main>
-  </div>
-</div>`;
-}
-
-/**
- * Construye HTML/CSS inline — plantilla Moderno (acento verde azulado, barra superior).
- */
-function construirPlantillaModerno(ctx) {
-    const skills = ctx.skillsItems.map((s) => `<div style="display:inline-block;margin:4px 6px 4px 0;padding:6px 12px;background:#ecfdf5;color:#065f46;border-radius:20px;font-size:12px;font-weight:600;">${s}</div>`).join("");
-    const skillsBlock = skills || '<span style="font-size:12px;color:#94a3b8;">Añade habilidades</span>';
-    const idiomasBlock = ctx.idiomasHtml
-        ? `<div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.2);"><h3 style="margin:0 0 8px;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.85;">Idiomas</h3><div style="font-size:13px;line-height:1.55;">${ctx.idiomasHtml}</div></div>`
-        : "";
-
-    return `
-<div class="cv-doc cv-doc--moderno" style="font-family:'Open Sans','Roboto',Arial,sans-serif;background:#ffffff;color:#1e293b;max-width:820px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 10px 40px rgba(15,23,42,0.15);border:1px solid #e2e8f0;">
-  <header style="background:linear-gradient(135deg,#0f766e 0%,#115e59 100%);color:#fff;padding:28px 32px;">
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;">
-      ${ctx.fotoBlockDark}
-      <div style="flex:1;min-width:200px;">
-        <h1 style="margin:0 0 6px;font-size:26px;font-weight:700;letter-spacing:-0.02em;">${ctx.nombre}</h1>
-        <p style="margin:0 0 14px;font-size:15px;opacity:0.95;font-weight:600;">${ctx.titulo}</p>
-        <div style="display:flex;flex-wrap:wrap;gap:12px 20px;font-size:13px;opacity:0.92;">
-          <span><i class="fa-solid fa-envelope" style="margin-right:6px;"></i>${ctx.correo}</span>
-          <span><i class="fa-solid fa-phone" style="margin-right:6px;"></i>${ctx.telefono}</span>
-          <span><i class="fa-solid fa-location-dot" style="margin-right:6px;"></i>${ctx.ubicacion}</span>
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:18px;">${skillsBlock}</div>
-    ${idiomasBlock}
-  </header>
-  <div style="padding:28px 32px;background:#fafafa;">
-    <section style="margin-bottom:24px;padding:20px;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
-      <h2 style="margin:0 0 12px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#0f766e;">Perfil profesional</h2>
-      <div style="font-size:14px;line-height:1.7;color:#334155;">${ctx.perfilHtml}</div>
-    </section>
-    <section style="padding:20px;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
-      <h2 style="margin:0 0 12px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#0f766e;">Experiencia</h2>
-      <div style="font-size:14px;line-height:1.7;color:#334155;">${ctx.expHtml}</div>
-    </section>
-  </div>
-</div>`;
-}
-
-/**
- * Construye HTML/CSS inline — plantilla Ejecutivo (gris oscuro + acento dorado).
- */
-function construirPlantillaEjecutivo(ctx) {
-    const skills = ctx.skillsItems
-        .map(
-            (s) =>
-                `<li style="margin:0 0 8px;font-size:13px;color:#e2e8f0;padding-left:4px;">${s}</li>`
-        )
-        .join("");
-    const skillsBlock = skills
-        ? `<ul style="margin:0;padding-left:18px;">${skills}</ul>`
-        : '<p style="font-size:13px;color:#64748b;margin:0;">Añade habilidades</p>';
-    const idiomasBlock = ctx.idiomasHtml
-        ? `<div style="margin-top:20px;"><h3 style="margin:0 0 8px;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#d97706;">Idiomas</h3><div style="font-size:12px;color:#cbd5e1;line-height:1.55;">${ctx.idiomasHtml}</div></div>`
-        : "";
-
-    return `
-<div class="cv-doc cv-doc--ejecutivo" style="font-family:'Lato','Roboto',Arial,sans-serif;background:#f8fafc;color:#1e293b;max-width:820px;margin:0 auto;border-radius:8px;overflow:hidden;box-shadow:0 12px 36px rgba(0,0,0,0.2);border:1px solid #cbd5e1;">
-  <header style="background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);color:#f8fafc;padding:26px 32px;border-bottom:3px solid #d97706;">
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:22px;">
-      ${ctx.fotoBlockEjecutivo}
-      <div style="flex:1;min-width:200px;">
-        <h1 style="margin:0 0 4px;font-size:27px;font-weight:700;letter-spacing:0.02em;">${ctx.nombre}</h1>
-        <p style="margin:0 0 12px;font-size:14px;color:#d97706;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">${ctx.titulo}</p>
-        <div style="display:flex;flex-wrap:wrap;gap:10px 18px;font-size:12px;color:#94a3b8;">
-          <span><i class="fa-solid fa-envelope" style="color:#d97706;margin-right:6px;"></i>${ctx.correo}</span>
-          <span><i class="fa-solid fa-phone" style="color:#d97706;margin-right:6px;"></i>${ctx.telefono}</span>
-          <span><i class="fa-solid fa-location-dot" style="color:#d97706;margin-right:6px;"></i>${ctx.ubicacion}</span>
-        </div>
-      </div>
-    </div>
-  </header>
-  <div style="display:flex;flex-wrap:wrap;">
-    <aside style="width:30%;min-width:200px;background:#1e293b;color:#e2e8f0;padding:24px 20px;box-sizing:border-box;">
-      <h3 style="margin:0 0 14px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#d97706;">Competencias</h3>
-      ${skillsBlock}
-      ${idiomasBlock}
-    </aside>
-    <main style="flex:1;min-width:260px;padding:28px 30px;background:#ffffff;box-sizing:border-box;">
-      <section style="margin-bottom:24px;">
-        <h2 style="margin:0 0 12px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#0f172a;border-bottom:2px solid #d97706;padding-bottom:8px;display:inline-block;">Resumen</h2>
-        <div style="font-size:14px;line-height:1.7;color:#334155;margin-top:10px;">${ctx.perfilHtml}</div>
-      </section>
-      <section>
-        <h2 style="margin:0 0 12px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#0f172a;border-bottom:2px solid #d97706;padding-bottom:8px;display:inline-block;">Trayectoria</h2>
-        <div style="font-size:14px;line-height:1.7;color:#334155;margin-top:10px;">${ctx.expHtml}</div>
-      </section>
-    </main>
-  </div>
-</div>`;
-}
-
-/** Bloques de foto con estilos distintos por plantilla (para contraste en header oscuro). */
-function bloquesFotoCV(fotoURL) {
+function bloquesFotoEditorial(fotoURL) {
     if (fotoURL) {
-        const img = `<img src="${fotoURL}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid #2563eb;box-shadow:0 4px 14px rgba(37,99,235,0.35);">`;
-        const imgDark = `<img src="${fotoURL}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,0.5);box-shadow:0 4px 16px rgba(0,0,0,0.3);">`;
-        const imgEj = `<img src="${fotoURL}" alt="" style="width:96px;height:96px;border-radius:4px;object-fit:cover;border:2px solid #d97706;box-shadow:0 4px 16px rgba(0,0,0,0.4);">`;
-        return { fotoBlock: img, fotoBlockDark: imgDark, fotoBlockEjecutivo: imgEj };
+        return `<img src="${fotoURL}" alt="" style="width:100%;max-width:160px;height:auto;aspect-ratio:3/4;object-fit:cover;border:3px solid #0f172a;filter:grayscale(100%);display:block;">`;
     }
-    const placeholder =
-        '<div style="width:96px;height:96px;border-radius:50%;background:#e2e8f0;border:2px dashed #94a3b8;display:flex;align-items:center;justify-content:center;font-size:11px;color:#64748b;text-align:center;padding:8px;">Sin foto</div>';
-    const placeholderDark =
-        '<div style="width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,0.12);border:2px dashed rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,0.7);text-align:center;padding:8px;">Sin foto</div>';
-    const placeholderEj =
-        '<div style="width:96px;height:96px;border-radius:4px;background:#334155;border:2px dashed #64748b;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8;text-align:center;padding:8px;">Sin foto</div>';
-    return { fotoBlock: placeholder, fotoBlockDark: placeholderDark, fotoBlockEjecutivo: placeholderEj };
+    return `<div style="width:100%;max-width:160px;aspect-ratio:3/4;background:#e2e8f0;border:3px solid #0f172a;display:flex;align-items:center;justify-content:center;font-size:11px;color:#64748b;text-align:center;padding:10px;">Sin foto</div>`;
+}
+
+function bloquesFotoCorporate(fotoURL) {
+    if (fotoURL) {
+        return `<img src="${fotoURL}" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid #f8c8d0;display:block;margin:0 auto 16px;">`;
+    }
+    return `<div style="width:96px;height:96px;border-radius:50%;margin:0 auto 16px;background:#5c5c5c;border:2px dashed #f8c8d0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#f8c8d0;text-align:center;">Sin foto</div>`;
+}
+
+function bloquesFotoMinimal(fotoURL) {
+    if (fotoURL) {
+        return `<img src="${fotoURL}" alt="" style="width:64px;height:64px;object-fit:cover;border:1px solid #000;display:block;">`;
+    }
+    return "";
+}
+
+function iconoContactoCirculo(innerFa) {
+    return `<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#0f172a;color:#fff;margin-right:8px;font-size:11px;">${innerFa}</span>`;
+}
+
+/** Plantilla Editorial — dos columnas, acento azul, serif + sans. */
+function construirPlantillaEditorial(ctx) {
+    const contactoFila = (icon, texto) =>
+        `<div style="display:flex;align-items:center;margin:0 0 8px;font-size:12px;color:#334155;font-family:Montserrat,Arial,sans-serif;">${icon}<span>${texto}</span></div>`;
+    const skillsHtml =
+        ctx.skillsItems.length > 0
+            ? ctx.skillsItems
+                  .map(
+                      (s) =>
+                          `<div style="font-size:11px;margin:0 0 5px;padding-left:10px;border-left:2px solid #1e40af;font-family:Montserrat,sans-serif;color:#475569;">${s}</div>`
+                  )
+                  .join("")
+            : '<div style="font-size:11px;color:#94a3b8;">—</div>';
+    const idiomasCols = ctx.idiomasHtml
+        ? `<div style="flex:1;min-width:110px;"><h4 style="margin:0 0 6px;font-family:Playfair Display,serif;font-size:12px;">Idiomas</h4><div style="font-size:11px;line-height:1.45;font-family:Montserrat,sans-serif;color:#475569;">${ctx.idiomasHtml}</div></div>`
+        : "";
+    const habCol = `<div style="flex:1;min-width:110px;"><h4 style="margin:0 0 6px;font-family:Playfair Display,serif;font-size:12px;">Habilidades</h4>${skillsHtml}</div>`;
+
+    return `<div style="max-width:${W}px;margin:0 auto;background:#fff;color:#0f172a;font-family:Montserrat,Open Sans,sans-serif;overflow:hidden;">
+<div style="height:4px;background:#1e40af;width:100%;"></div>
+<div style="display:flex;flex-wrap:wrap;">
+<aside style="width:32%;min-width:200px;box-sizing:border-box;padding:18px 14px;border-left:6px solid #0f172a;border-bottom:6px solid #0f172a;background:#fafafa;">
+${ctx.fotoEditorial}
+<h3 style="font-family:Playfair Display,Georgia,serif;font-size:13px;margin:14px 0 8px;">Sobre mí</h3>
+<div style="font-size:11px;line-height:1.55;color:#475569;">${ctx.perfilHtml}</div>
+<h3 style="font-family:Playfair Display,Georgia,serif;font-size:13px;margin:16px 0 8px;">Contacto</h3>
+${contactoFila(iconoContactoCirculo('<i class="fa-solid fa-phone"></i>'), ctx.telefono)}
+${contactoFila(iconoContactoCirculo('<i class="fa-solid fa-envelope"></i>'), ctx.correo)}
+${contactoFila(iconoContactoCirculo('<i class="fa-solid fa-location-dot"></i>'), ctx.ubicacion)}
+<h3 style="font-family:Playfair Display,Georgia,serif;font-size:13px;margin:16px 0 8px;">Más información</h3>
+<div style="font-size:10px;line-height:1.5;color:#64748b;word-break:break-word;">${ctx.masInfoHtml}</div>
+</aside>
+<main style="flex:1;min-width:240px;box-sizing:border-box;padding:20px 20px 24px;">
+<h1 style="margin:0 0 4px;font-family:Playfair Display,Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-0.02em;">${ctx.nombre}</h1>
+<p style="margin:0 0 12px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1e40af;">${ctx.titulo}</p>
+<h2 style="font-family:Playfair Display,serif;font-size:14px;margin:0 0 8px;border-bottom:1px solid #0f172a;padding-bottom:4px;">Experiencia laboral</h2>
+<div style="font-size:12px;line-height:1.55;color:#334155;word-wrap:break-word;overflow-wrap:anywhere;">${ctx.expHtml}</div>
+<h2 style="font-family:Playfair Display,serif;font-size:14px;margin:18px 0 8px;border-bottom:1px solid #0f172a;padding-bottom:4px;">Formación</h2>
+<div style="font-size:12px;line-height:1.55;color:#334155;word-wrap:break-word;overflow-wrap:anywhere;">${ctx.eduHtml}</div>
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid #0f172a;">
+${habCol}
+${idiomasCols || '<div style="flex:1;"></div>'}
+</div>
+</main>
+</div>
+</div>`;
+}
+
+/** Plantilla Corporativo — sidebar, acento rosa. */
+function construirPlantillaCorporate(ctx) {
+    const pink = "#f8c8d0";
+    const sideBg = "#5a5a5a";
+    const label = (t) =>
+        `<div style="display:inline-block;background:${pink};color:#111;padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:0.1em;margin:0 0 10px;font-family:Montserrat,sans-serif;">${t}</div>`;
+    const bars = ctx.skillsItems.slice(0, 8).map((s, i) => {
+        const w = 55 + ((i * 17) % 35);
+        return `<div style="margin:0 0 10px;font-family:Montserrat,sans-serif;font-size:11px;color:#fff;">
+<div style="margin-bottom:3px;">${s}</div>
+<div style="height:6px;background:#111;border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${pink};border-radius:3px;"></div></div>`;
+    });
+    const skillsBlock = bars.length ? bars.join("") : '<p style="color:#ddd;font-size:11px;">—</p>';
+
+    return `<div style="max-width:${W}px;margin:0 auto;overflow:hidden;font-family:Montserrat,Roboto,sans-serif;">
+<div style="display:flex;flex-wrap:wrap;">
+<aside style="width:34%;min-width:200px;background:${sideBg};color:#fff;box-sizing:border-box;padding:20px 16px;">
+${ctx.fotoCorporate}
+${label("CONTACTO")}
+<div style="font-size:11px;line-height:1.65;margin-bottom:16px;">
+<div style="margin-bottom:6px;"><i class="fa-solid fa-phone" style="margin-right:6px;color:${pink};"></i>${ctx.telefono}</div>
+<div style="margin-bottom:6px;"><i class="fa-solid fa-envelope" style="margin-right:6px;color:${pink};"></i>${ctx.correo}</div>
+<div><i class="fa-solid fa-location-dot" style="margin-right:6px;color:${pink};"></i>${ctx.ubicacion}</div>
+</div>
+${label("PERFIL")}
+<div style="font-size:11px;line-height:1.55;color:#f1f5f9;margin-bottom:18px;word-wrap:break-word;">${ctx.perfilHtml}</div>
+${label("HABILIDADES")}
+${skillsBlock}
+</aside>
+<main style="flex:1;min-width:240px;background:#fff;box-sizing:border-box;padding:0;">
+<div style="background:${pink};padding:14px 18px;">
+<h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:0.03em;color:#111;font-family:Montserrat,sans-serif;">${ctx.nombreUpper}</h1>
+</div>
+<div style="background:#404040;padding:10px 18px;margin-bottom:6px;">
+<p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.15em;color:#fff;">${ctx.tituloUpper}</p>
+</div>
+<div style="padding:18px 18px 22px;">
+<h2 style="margin:0 0 10px;font-size:13px;font-weight:800;letter-spacing:0.08em;color:#111;">FORMACIÓN</h2>
+<div style="font-size:12px;line-height:1.6;color:#333;margin-bottom:20px;word-wrap:break-word;">${ctx.eduHtml}</div>
+<h2 style="margin:0 0 10px;font-size:13px;font-weight:800;letter-spacing:0.08em;color:#111;">EXPERIENCIA</h2>
+<div style="font-size:12px;line-height:1.6;color:#333;word-wrap:break-word;overflow-wrap:anywhere;">${ctx.expHtml}</div>
+</div>
+</main>
+</div>
+</div>`;
+}
+
+/** Plantilla Minimal — monocromo, líneas, compacto. */
+function construirPlantillaMinimal(ctx) {
+    const fotoHeader =
+        ctx.fotoMinimal ||
+        `<div style="width:56px;height:56px;background:#eee;border:1px solid #000;"></div>`;
+    return `<div style="max-width:${W}px;margin:0 auto;background:#fff;color:#111;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:20px 22px 24px;">
+<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:3px solid #000;padding-bottom:12px;margin-bottom:12px;">
+<div style="flex:1;min-width:180px;">
+<h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:0.05em;">${ctx.nombreUpper}</h1>
+<p style="margin:6px 0 0;font-size:11px;font-weight:700;letter-spacing:0.06em;">${ctx.tituloUpper}</p>
+<div style="height:1px;background:#000;margin-top:8px;max-width:240px;"></div>
+</div>
+<div style="text-align:right;font-size:11px;line-height:1.65;min-width:160px;">
+<div>${fotoHeader}</div>
+<div style="margin-top:6px;"><i class="fa-solid fa-phone"></i> ${ctx.telefono}</div>
+<div><i class="fa-solid fa-envelope"></i> ${ctx.correo}</div>
+<div><i class="fa-solid fa-location-dot"></i> ${ctx.ubicacion}</div>
+</div>
+</div>
+<div style="font-size:12px;line-height:1.55;margin-bottom:14px;color:#222;word-wrap:break-word;">${ctx.perfilHtml}</div>
+<div style="border-bottom:3px solid #000;margin-bottom:14px;"></div>
+<div style="display:flex;flex-wrap:wrap;gap:18px;">
+<div style="flex:1;min-width:180px;">
+<h2 style="margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:0.08em;">FORMACIÓN</h2>
+<div style="font-size:11px;line-height:1.55;color:#333;word-wrap:break-word;">${ctx.eduHtml}</div>
+</div>
+<div style="flex:1;min-width:180px;">
+<h2 style="margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:0.08em;">HABILIDADES</h2>
+<div style="font-size:11px;line-height:1.55;color:#333;">${ctx.skillsBullets}</div>
+</div>
+</div>
+<div style="border-bottom:3px solid #000;margin:16px 0 14px;"></div>
+<h2 style="margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:0.08em;">EXPERIENCIA LABORAL</h2>
+<div style="font-size:12px;line-height:1.6;color:#333;word-wrap:break-word;overflow-wrap:anywhere;">${ctx.expHtml}</div>
+</div>`;
 }
 
 /**
- * Genera la vista previa del CV a partir del formulario.
- * @param {boolean} [omitirValidacionFormulario] — true al cargar ejemplo o datos guardados sin validar de nuevo.
+ * Normaliza valores guardados (nombres antiguos o de demostración).
  */
-function generarCV(omitirValidacionFormulario) {
-    if (!omitirValidacionFormulario && !validarFormulario()) {
+function normalizarPlantillaGuardada(p) {
+    const map = {
+        clasico: "editorial",
+        moderno: "corporate",
+        ejecutivo: "minimal",
+        elegante: "minimal",
+        elena: "editorial",
+        andrea: "corporate",
+        isabela: "minimal",
+    };
+    return map[p] || p || "editorial";
+}
+
+/**
+ * Aplica estilos temporales al contenedor de captura para que html2canvas vea todo el alto del CV.
+ */
+function prepararPreviewParaCaptura(preview) {
+    const prev = {
+        maxHeight: preview.style.maxHeight,
+        overflow: preview.style.overflow,
+        overflowX: preview.style.overflowX,
+        backgroundColor: preview.style.backgroundColor,
+        classList: preview.className,
+    };
+    preview.classList.add("preview--pdf-capture");
+    preview.style.maxHeight = "none";
+    preview.style.overflow = "visible";
+    preview.style.overflowX = "visible";
+    preview.style.backgroundColor = "#ffffff";
+    return prev;
+}
+
+function restaurarPreviewTrasCaptura(preview, prev) {
+    preview.style.maxHeight = prev.maxHeight;
+    preview.style.overflow = prev.overflow;
+    preview.style.overflowX = prev.overflowX;
+    preview.style.backgroundColor = prev.backgroundColor;
+    preview.className = prev.classList;
+}
+
+/**
+ * Inserta en el PDF el canvas completo en una o varias páginas A4 (sin deformar ni recortar contenido).
+ */
+function canvasAMultipaginaPDF(canvas, doc, opciones) {
+    const margin = opciones.marginMm;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const footerReserve = opciones.footerReserveMm || 0;
+    const usableH = pageH - 2 * margin - footerReserve;
+    const pdfImgW = pageW - 2 * margin;
+
+    const srcW = canvas.width;
+    const srcH = canvas.height;
+    const fullImgHmm = (pdfImgW * srcH) / srcW;
+
+    function pieDePaginaGratis() {
+        if (!opciones.premium) {
+            doc.setFontSize(8);
+            doc.setTextColor(130, 130, 130);
+            doc.text("CV Studio — Versión gratuita", margin, pageH - 4);
+        }
+    }
+
+    if (fullImgHmm <= usableH + 0.35) {
+        doc.addImage(canvas.toDataURL("image/png"), "PNG", margin, margin, pdfImgW, fullImgHmm);
+        pieDePaginaGratis();
         return;
     }
 
-    const nombre = document.getElementById("nombre").value;
-    const tituloProfesional = document.getElementById("tituloProfesional").value;
-    const ubicacion = document.getElementById("ubicacion").value;
-    const telefono = document.getElementById("telefono").value;
-    const correo = document.getElementById("correo").value;
-    const experiencia = document.getElementById("experiencia").value;
-    const habilidades = document.getElementById("habilidades").value;
-    const idiomas = document.getElementById("idiomas") ? document.getElementById("idiomas").value : "";
-    let plantilla = document.getElementById("plantilla").value;
-    if (plantilla === "elegante") plantilla = "ejecutivo";
+    const pxPorPaginaIdeal = Math.max(1, Math.floor((usableH / fullImgHmm) * srcH));
+    let yPx = 0;
+    let numPagina = 0;
+    while (yPx < srcH) {
+        const restantePx = srcH - yPx;
+        const slicePx = Math.min(restantePx, pxPorPaginaIdeal > 0 ? pxPorPaginaIdeal : restantePx);
+        if (slicePx <= 0) break;
+
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = srcW;
+        sliceCanvas.height = slicePx;
+        const sctx = sliceCanvas.getContext("2d");
+        sctx.fillStyle = "#ffffff";
+        sctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+        sctx.drawImage(canvas, 0, yPx, srcW, slicePx, 0, 0, srcW, slicePx);
+
+        const sliceHmmDraw = (slicePx * pdfImgW) / srcW;
+        if (numPagina > 0) {
+            doc.addPage();
+        }
+        doc.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, margin, pdfImgW, sliceHmmDraw);
+        pieDePaginaGratis();
+
+        yPx += slicePx;
+        numPagina++;
+        if (numPagina > 100) break;
+    }
+}
+
+function generarCV(omitirValidacion) {
+    if (!omitirValidacion && !validarFormulario({})) {
+        return;
+    }
+
+    revocarBlobsVistaPrevia();
+
+    const nombre = el("nombre").value;
+    const tituloProfesional = el("tituloProfesional").value;
+    const ubicacion = el("ubicacion").value;
+    const telefono = el("telefono").value;
+    const correo = el("correo").value;
+    const experiencia = el("experiencia").value;
+    const habilidades = el("habilidades").value;
+    const idiomas = el("idiomas") ? el("idiomas").value : "";
+    const educacion = el("educacion") ? el("educacion").value : "";
+    const masInformacion = el("masInformacion") ? el("masInformacion").value : "";
+    let plantilla = normalizarPlantillaGuardada(el("plantilla").value);
 
     const perfilHtml = escapeHtml(obtenerPerfilTexto()).replace(/\n/g, "<br>");
-    const expHtml = escapeHtml(experiencia).replace(/\n/g, "<br>") || '<span style="color:#94a3b8;">Describe tu experiencia laboral.</span>';
-    const idiomasRaw = idiomas.trim();
-    const idiomasHtml = idiomasRaw ? escapeHtml(idiomasRaw).replace(/\n/g, "<br>") : "";
+    const expHtml =
+        escapeHtml(experiencia).replace(/\n/g, "<br>") ||
+        '<span style="color:#94a3b8;">Describe tu experiencia.</span>';
+    const eduHtml =
+        escapeHtml(educacion).replace(/\n/g, "<br>") || '<span style="color:#94a3b8;">—</span>';
+    const idiomasHtml = idiomas.trim() ? escapeHtml(idiomas.trim()).replace(/\n/g, "<br>") : "";
+    const masInfoHtml =
+        escapeHtml(masInformacion.trim()).replace(/\n/g, "<br>") ||
+        '<span style="color:#64748b;">Licencia, disponibilidad, etc.</span>';
 
-    const foto = document.getElementById("foto").files[0];
+    const foto = el("foto").files[0];
     const fotoURL = foto ? URL.createObjectURL(foto) : "";
+    if (fotoURL) {
+        registrarBlobVistaPrevia(fotoURL);
+    }
 
     const titulo = tituloProfesional.trim() || "Profesional";
     const ubic = ubicacion.trim() || "—";
     const tel = telefono.trim() || "—";
-
     const skillsItems = habilidadesALista(habilidades).map((s) => escapeHtml(s));
-    const fotos = bloquesFotoCV(fotoURL);
+    const skillsBullets = skillsItems.length
+        ? skillsItems.map((s) => `<div style="margin:0 0 4px;"><span style="font-weight:bold;">·</span> ${s}</div>`).join("")
+        : "—";
 
     const ctx = {
         nombre: escapeHtml(nombre),
+        nombreUpper: escapeHtml(nombre.toUpperCase()),
         titulo: escapeHtml(titulo),
+        tituloUpper: escapeHtml(titulo.toUpperCase()),
         correo: escapeHtml(correo),
         telefono: escapeHtml(tel),
         ubicacion: escapeHtml(ubic),
         perfilHtml,
         expHtml,
+        eduHtml,
         idiomasHtml,
+        masInfoHtml,
         skillsItems,
-        fotoBlock: fotos.fotoBlock,
-        fotoBlockDark: fotos.fotoBlockDark,
-        fotoBlockEjecutivo: fotos.fotoBlockEjecutivo,
+        skillsBullets,
+        fotoEditorial: bloquesFotoEditorial(fotoURL),
+        fotoCorporate: bloquesFotoCorporate(fotoURL),
+        fotoMinimal: bloquesFotoMinimal(fotoURL),
     };
 
     let contenido = "";
-
     if (plantillaCustomURL) {
-        contenido = `<img src="${plantillaCustomURL}" alt="" style="width:100%;display:block;border-radius:8px;">`;
-    } else if (plantilla === "clasico") {
-        contenido = construirPlantillaClasico(ctx);
-    } else if (plantilla === "moderno") {
-        contenido = construirPlantillaModerno(ctx);
+        registrarBlobVistaPrevia(plantillaCustomURL);
+        contenido = `<div style="max-width:${W}px;margin:0 auto;"><img src="${plantillaCustomURL}" alt="" style="width:100%;display:block;border-radius:6px;"></div>`;
+    } else if (plantilla === "corporate") {
+        contenido = construirPlantillaCorporate(ctx);
+    } else if (plantilla === "minimal") {
+        contenido = construirPlantillaMinimal(ctx);
     } else {
-        contenido = construirPlantillaEjecutivo(ctx);
+        contenido = construirPlantillaEditorial(ctx);
     }
 
-    const preview = document.getElementById("preview");
+    const preview = el("preview");
     preview.style.opacity = "0";
     preview.innerHTML = contenido;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(function () {
         preview.style.opacity = "1";
+        anunciarVistaPrevia("Vista del currículum actualizada.");
     });
 }
 
-/** Texto de respaldo cuando no hay API Key o falla OpenAI. */
+function vistaPreviaCV() {
+    if (!validarFormulario({})) return;
+    generarCV(true);
+    const preview = el("preview");
+    if (preview) {
+        preview.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+}
+
 function perfilFallbackLocal(experiencia, habilidades) {
     const exp = experiencia.trim() || "experiencia profesional";
     const hab = habilidades.trim() || "habilidades transferibles";
     return (
         `Profesional orientado a resultados, con base en ${hab.split(/[,\n]/)[0]?.trim() || "competencias relevantes"}. ` +
-        `Su trayectoria incluye: ${exp.slice(0, 200)}${exp.length > 200 ? "…" : ""} ` +
-        `Destaca por comunicación clara, trabajo en equipo y mejora continua. ` +
-        `Busca aportar valor desde el primer día en entornos dinámicos.`
+        `Trayectoria: ${exp.slice(0, 200)}${exp.length > 200 ? "…" : ""} ` +
+        `Destaca por comunicación clara, trabajo en equipo y mejora continua.`
     );
 }
 
@@ -425,33 +721,28 @@ async function llamarOpenAIPerfil(apiKey, userPrompt) {
         data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
             ? String(data.choices[0].message.content).trim()
             : "";
-    if (!t) {
-        throw new Error("Respuesta vacía de la API");
-    }
+    if (!t) throw new Error("Respuesta vacía de la API");
     return t;
 }
 
-/** Genera perfil con OpenAI (si hay #apiKey) o fallback local; mensajes claros al usuario. */
 async function generarPerfilIA() {
     if (!esPremium()) {
-        alert("🔒 Solo disponible en versión Premium.");
+        alert("Solo disponible en versión Premium.");
         return;
     }
 
-    const experiencia = document.getElementById("experiencia").value.trim();
-    const habilidades = document.getElementById("habilidades").value.trim();
+    const experiencia = el("experiencia").value.trim();
+    const habilidades = el("habilidades").value.trim();
     if (!experiencia && !habilidades) {
-        alert("Primero ingresa tu experiencia o habilidades.");
+        alert("Ingresa experiencia o habilidades para contextualizar la IA.");
         return;
     }
 
-    const perfilField = document.getElementById("perfil");
+    const perfilField = el("perfil");
     if (!perfilField) return;
 
-    const apiKeyInput = document.getElementById("apiKey");
-    const apiKeyRaw = apiKeyInput ? apiKeyInput.value : "";
-    const apiKey = apiKeyRaw.trim();
-    const btn = document.getElementById("btnGenerarIA");
+    const apiKey = (el("apiKey") && el("apiKey").value.trim()) || "";
+    const btn = el("btnGenerarIA");
     const label = btn ? btn.textContent : "";
     if (btn) {
         btn.disabled = true;
@@ -461,10 +752,9 @@ async function generarPerfilIA() {
     try {
         const userPrompt =
             `Experiencia:\n${experiencia || "(no indicada)"}\n\nHabilidades:\n${habilidades || "(no indicadas)"}\n\n` +
-            `Genera un perfil profesional en español de 3 a 4 líneas, tono formal, sin viñetas ni inventar datos que no aparezcan en el texto.`;
+            `Genera un perfil profesional en español de 3 a 4 líneas.`;
 
         if (!apiKey) {
-            console.log("[CV Generator] Fallback local — motivo: API Key vacía; no se llama a OpenAI.");
             perfilField.value = perfilFallbackLocal(experiencia, habilidades);
             mostrarMensajeExito("Perfil generado en local (sin API Key).");
             generarCV(true);
@@ -474,28 +764,21 @@ async function generarPerfilIA() {
         let texto = "";
         try {
             texto = await llamarOpenAIPerfil(apiKey, userPrompt);
-        } catch (primerError) {
-            console.warn("[CV Generator] Primer intento OpenAI fallido; reintentando una vez más.", primerError);
+        } catch (e1) {
+            console.warn("[CV Studio] Reintento OpenAI.", e1);
             texto = await llamarOpenAIPerfil(apiKey, userPrompt);
         }
-
         perfilField.value = texto;
         mostrarMensajeExito("Perfil generado con OpenAI.");
         generarCV(true);
     } catch (e) {
-        const motivo = e && e.message ? e.message : String(e);
-        console.log("[CV Generator] Fallback local — motivo: error de red o API tras reintento.", motivo);
         console.error(e);
         perfilField.value = perfilFallbackLocal(experiencia, habilidades);
-        mostrarMensajeExito("No se pudo conectar con OpenAI; se usó texto local.");
+        mostrarMensajeExito("Se usó texto local (revisa tu API Key o la conexión).");
         alert(
-            "No pudimos obtener el perfil desde OpenAI (clave inválida, sin saldo o error de red).\nSe rellenó el campo con un texto de ejemplo local. Revisa tu API Key o inténtalo más tarde."
+            "No pudimos obtener el perfil desde OpenAI.\nRevisa la API Key y el saldo.\nSe rellenó el perfil con un texto de respaldo."
         );
-        try {
-            generarCV(true);
-        } catch (e2) {
-            console.error(e2);
-        }
+        generarCV(true);
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -505,139 +788,328 @@ async function generarPerfilIA() {
     }
 }
 
-/** Exporta la vista previa a PDF (html2canvas escala 2); marca de agua si no es premium. */
 function descargarPDF() {
-    if (!validarFormulario()) {
+    if (!validarFormulario({})) return;
+    generarCV(true);
+
+    if (!window.jspdf || !window.jspdf.jsPDF || typeof window.html2canvas !== "function") {
+        mostrarMensajeError("No se cargaron las librerías del PDF (jsPDF / html2canvas). Comprueba tu conexión y recarga.");
         return;
     }
 
+    const preview = el("preview");
     const { jsPDF } = window.jspdf;
-    const preview = document.getElementById("preview");
-    const premium = esPremium();
+    const btnPdf = el("btnDescargarPdf");
+    const labelPdf = btnPdf ? btnPdf.textContent : "";
 
-    html2canvas(preview, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" }).then((canvas) => {
-        const imgData = canvas.toDataURL("image/png");
-        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-        const margin = 10;
-        const maxW = pageW - margin * 2;
-        const ratio = canvas.height / canvas.width;
-        let imgW = maxW;
-        let imgH = imgW * ratio;
-        if (imgH > pageH - margin * 2) {
-            imgH = pageH - margin * 2;
-            imgW = imgH / ratio;
+    if (btnPdf) {
+        btnPdf.disabled = true;
+        btnPdf.setAttribute("aria-busy", "true");
+        btnPdf.classList.add("is-loading");
+        btnPdf.textContent = "Generando PDF…";
+    }
+
+    window.setTimeout(function () {
+        const snap = prepararPreviewParaCaptura(preview);
+        const premium = esPremium();
+        const footerMm = premium ? 0 : PDF_FOOTER_FREE_MM;
+
+        html2canvas(preview, {
+            scale: PDF_SCALE,
+            useCORS: true,
+            logging: false,
+            backgroundColor: "#ffffff",
+        })
+            .then((canvas) => {
+                const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+                canvasAMultipaginaPDF(canvas, doc, {
+                    marginMm: PDF_MARGIN_MM,
+                    footerReserveMm: footerMm,
+                    premium: premium,
+                });
+                doc.save(premium ? "CV-Studio-Premium.pdf" : "CV-Studio.pdf");
+                mostrarMensajeExito("PDF generado correctamente.");
+            })
+            .catch(function (err) {
+                console.error(err);
+                mostrarMensajeError(
+                    "No se pudo generar el PDF. Prueba con menos texto, otra imagen o recarga la página."
+                );
+            })
+            .finally(function () {
+                restaurarPreviewTrasCaptura(preview, snap);
+                if (btnPdf) {
+                    btnPdf.disabled = false;
+                    btnPdf.removeAttribute("aria-busy");
+                    btnPdf.classList.remove("is-loading");
+                    btnPdf.textContent = labelPdf || "Descargar PDF";
+                }
+            });
+    }, 280);
+}
+
+function recogerDatosCv() {
+    return {
+        nombre: el("nombre") ? el("nombre").value : "",
+        tituloProfesional: el("tituloProfesional") ? el("tituloProfesional").value : "",
+        ubicacion: el("ubicacion") ? el("ubicacion").value : "",
+        telefono: el("telefono") ? el("telefono").value : "",
+        correo: el("correo") ? el("correo").value : "",
+        perfil: el("perfil") ? el("perfil").value : "",
+        educacion: el("educacion") ? el("educacion").value : "",
+        experiencia: el("experiencia") ? el("experiencia").value : "",
+        habilidades: el("habilidades") ? el("habilidades").value : "",
+        idiomas: el("idiomas") ? el("idiomas").value : "",
+        masInformacion: el("masInformacion") ? el("masInformacion").value : "",
+        plantilla: el("plantilla") ? el("plantilla").value : "editorial",
+    };
+}
+
+function aplicarCvDesdeObjeto(data, opciones) {
+    const o = opciones || {};
+    if (!data || typeof data !== "object") {
+        return;
+    }
+    const persistPremium = o.persistPremium !== false;
+    const skipGenerar = o.skipGenerar === true;
+
+    if (el("nombre")) el("nombre").value = data.nombre || "";
+    if (el("tituloProfesional")) el("tituloProfesional").value = data.tituloProfesional || "";
+    if (el("ubicacion")) el("ubicacion").value = data.ubicacion || "";
+    if (el("telefono")) el("telefono").value = data.telefono || "";
+    if (el("correo")) el("correo").value = data.correo || "";
+    if (el("perfil")) el("perfil").value = data.perfil || "";
+    if (el("educacion")) el("educacion").value = data.educacion || "";
+    if (el("experiencia")) el("experiencia").value = data.experiencia || "";
+    if (el("habilidades")) el("habilidades").value = data.habilidades || "";
+    if (el("idiomas")) el("idiomas").value = data.idiomas || "";
+    if (el("masInformacion")) el("masInformacion").value = data.masInformacion || "";
+
+    const plantilla = normalizarPlantillaGuardada(data.plantilla || "editorial");
+    if (el("plantilla")) el("plantilla").value = plantilla;
+    sincronizarAriaPlantillas(plantilla);
+
+    if (persistPremium) {
+        if (data.premium === "true") {
+            localStorage.setItem("premium", "true");
+        } else if (data.premium === "false") {
+            localStorage.removeItem("premium");
         }
-        const xImg = (pageW - imgW) / 2;
-        const yImg = margin;
-        doc.addImage(imgData, "PNG", xImg, yImg, imgW, imgH);
+    }
 
-        if (!esPremium()) {
-            doc.setFontSize(12);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Creado con CV Pro - Versión gratuita", 10, 280);
+    actualizarUI();
+    if (!skipGenerar) {
+        generarCV(true);
+    }
+}
+
+function exportarBorradorJSON() {
+    try {
+        const payload = {
+            schemaVersion: EXPORT_JSON_VERSION,
+            exportedAt: new Date().toISOString(),
+            app: "CV Studio",
+            data: recogerDatosCv(),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "cv-studio-borrador.json";
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.setTimeout(function () {
+            URL.revokeObjectURL(url);
+        }, 4000);
+        mostrarMensajeExito("JSON exportado.");
+    } catch (e) {
+        console.error(e);
+        mostrarMensajeError("No se pudo exportar el archivo.");
+    }
+}
+
+function dispararImportarJSON() {
+    const inp = el("inputImportJson");
+    if (inp) inp.click();
+}
+
+function importarBorradorJSON(e) {
+    const target = e && e.target;
+    const file = target && target.files && target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+        try {
+            const json = JSON.parse(String(reader.result || ""));
+            const data = json.data && typeof json.data === "object" ? json.data : json;
+            if (!data || typeof data !== "object") {
+                throw new Error("Raíz inválida");
+            }
+            if (json.schemaVersion && Number(json.schemaVersion) > EXPORT_JSON_VERSION) {
+                mostrarMensajeError("El archivo es de una versión más nueva que esta aplicación.");
+                return;
+            }
+            aplicarCvDesdeObjeto(data, { persistPremium: false });
+            mostrarMensajeExito("Borrador importado desde JSON.");
+        } catch (err) {
+            console.error(err);
+            mostrarMensajeError("No se pudo leer el JSON. Revisa el formato.");
+        } finally {
+            if (target) target.value = "";
         }
+    };
+    reader.onerror = function () {
+        mostrarMensajeError("Error al leer el archivo.");
+        if (target) target.value = "";
+    };
+    reader.readAsText(file, "UTF-8");
+}
 
-        doc.save(premium ? "CV-Pro-Premium.pdf" : "CV-Pro-Gratis.pdf");
+function limpiarFormularioCompleto() {
+    if (
+        !confirm(
+            "¿Vaciar todos los campos y la vista previa? No cambia Premium ni el borrador en localStorage hasta que pulses Guardar de nuevo."
+        )
+    ) {
+        return;
+    }
+    const ids = [
+        "nombre",
+        "tituloProfesional",
+        "ubicacion",
+        "telefono",
+        "correo",
+        "perfil",
+        "educacion",
+        "experiencia",
+        "habilidades",
+        "idiomas",
+        "masInformacion",
+    ];
+    ids.forEach(function (id) {
+        const node = el(id);
+        if (node) node.value = "";
     });
+    const fotoIn = el("foto");
+    if (fotoIn) fotoIn.value = "";
+    const pc = el("plantillaCustom");
+    if (pc) pc.value = "";
+    if (plantillaCustomURL) {
+        try {
+            URL.revokeObjectURL(plantillaCustomURL);
+        } catch (_) {}
+        plantillaCustomURL = "";
+    }
+    if (el("plantilla")) el("plantilla").value = "editorial";
+    sincronizarAriaPlantillas("editorial");
+    revocarBlobsVistaPrevia();
+    const preview = el("preview");
+    if (preview) {
+        preview.innerHTML = PREVIEW_PLACEHOLDER;
+        preview.style.opacity = "1";
+    }
+    anunciarVistaPrevia("Formulario vaciado.");
+    mostrarMensajeExito("Campos reiniciados.");
+}
+
+function aplicarTemaInicial() {
+    try {
+        if (localStorage.getItem(STORAGE_THEME) === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+        }
+    } catch (_) {}
+}
+
+function alternarTema() {
+    try {
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        if (isDark) {
+            document.documentElement.removeAttribute("data-theme");
+            localStorage.setItem(STORAGE_THEME, "light");
+        } else {
+            document.documentElement.setAttribute("data-theme", "dark");
+            localStorage.setItem(STORAGE_THEME, "dark");
+        }
+    } catch (_) {}
 }
 
 function guardarCV() {
-    const data = {
-        nombre: document.getElementById("nombre").value,
-        tituloProfesional: document.getElementById("tituloProfesional").value,
-        ubicacion: document.getElementById("ubicacion").value,
-        telefono: document.getElementById("telefono").value,
-        correo: document.getElementById("correo").value,
-        perfil: document.getElementById("perfil").value,
-        experiencia: document.getElementById("experiencia").value,
-        habilidades: document.getElementById("habilidades").value,
-        idiomas: document.getElementById("idiomas") ? document.getElementById("idiomas").value : "",
-        plantilla: document.getElementById("plantilla").value,
-        premium: esPremium() ? "true" : "false",
-    };
+    const data = Object.assign({}, recogerDatosCv(), { premium: esPremium() ? "true" : "false" });
     localStorage.setItem(STORAGE_CV, JSON.stringify(data));
-    alert("CV guardado");
+    mostrarMensajeExito("Borrador guardado en este navegador.");
 }
 
 function cargarCV() {
     const raw = localStorage.getItem(STORAGE_CV);
     if (!raw) {
-        alert("No hay CV guardado");
+        alert("No hay borrador guardado.");
         return;
     }
     let data;
     try {
         data = JSON.parse(raw);
     } catch {
-        alert("Datos guardados no válidos");
+        alert("Datos no válidos.");
         return;
     }
-
-    document.getElementById("nombre").value = data.nombre || "";
-    document.getElementById("tituloProfesional").value = data.tituloProfesional || "";
-    document.getElementById("ubicacion").value = data.ubicacion || "";
-    document.getElementById("telefono").value = data.telefono || "";
-    document.getElementById("correo").value = data.correo || "";
-    document.getElementById("perfil").value = data.perfil || "";
-    document.getElementById("experiencia").value = data.experiencia || "";
-    document.getElementById("habilidades").value = data.habilidades || "";
-    if (document.getElementById("idiomas")) {
-        document.getElementById("idiomas").value = data.idiomas || "";
+    if (!data || typeof data !== "object") {
+        alert("Datos no válidos.");
+        return;
     }
-    let plantilla = data.plantilla || "clasico";
-    if (plantilla === "elegante") plantilla = "ejecutivo";
-    document.getElementById("plantilla").value = plantilla;
-
-    if (data.premium === "true") {
-        localStorage.setItem("premium", "true");
-    } else if (data.premium === "false") {
-        localStorage.removeItem("premium");
-    }
-
-    document.querySelectorAll(".plantilla").forEach((el) => el.classList.remove("activa"));
-    const tipo = document.getElementById("plantilla").value;
-    const activa = document.querySelector('.plantilla[data-tipo="' + tipo + '"]');
-    if (activa) activa.classList.add("activa");
-
-    actualizarUI();
-    generarCV(true);
-    alert("CV cargado");
+    aplicarCvDesdeObjeto(data, { persistPremium: true });
+    mostrarMensajeExito("Borrador cargado.");
 }
 
-/** Carga datos ficticios para mostrar el diseño de las plantillas (útil en demos). */
 function cargarEjemploCV() {
-    document.getElementById("nombre").value = "Ana María López Herrera";
-    document.getElementById("tituloProfesional").value = "Desarrolladora Full Stack";
-    document.getElementById("ubicacion").value = "Ciudad de México, México";
-    document.getElementById("telefono").value = "+52 55 1234 5678";
-    document.getElementById("correo").value = "ana.lopez@ejemplo.com";
-    document.getElementById("perfil").value =
-        "Especialista en desarrollo web con más de 5 años construyendo productos escalables. Apasionada por la calidad del código, la accesibilidad y el trabajo colaborativo en equipos ágiles.";
-    document.getElementById("experiencia").value =
-        "TechNova Solutions — Desarrolladora Senior (2021–Presente)\nLiderazgo técnico en módulos de pagos; migración a React y Node.js.\n\nDigital Craft — Desarrolladora (2018–2021)\nAPIs REST, integraciones y despliegues en la nube.";
-    document.getElementById("habilidades").value =
-        "JavaScript, TypeScript, React, Node.js\nGit, SQL, metodologías ágiles, comunicación efectiva";
-    if (document.getElementById("idiomas")) {
-        document.getElementById("idiomas").value = "Español — Nativo\nInglés — Avanzado (C1)";
-    }
-    document.getElementById("plantilla").value = "clasico";
-    document.querySelectorAll(".plantilla").forEach((el) => el.classList.remove("activa"));
-    const p = document.querySelector('.plantilla[data-tipo="clasico"]');
-    if (p) p.classList.add("activa");
+    el("nombre").value = "María González Ruiz";
+    el("tituloProfesional").value = "Responsable comercial B2B";
+    el("ubicacion").value = "Ciudad de México, México";
+    el("telefono").value = "+52 55 1234 5678";
+    el("correo").value = "maria.gonzalez@ejemplo.com";
+    el("perfil").value =
+        "Perfil orientado a ventas consultivas y fidelización de cartera. Experiencia en entornos digitales y presenciales, con foco en KPIs y mejora continua.";
+    el("educacion").value =
+        "2015 – 2019\nUniversidad Nacional Ejemplo\nLic. en Administración de Empresas";
+    el("experiencia").value =
+        "Responsable comercial — TechDemo S.A. de C.V. (2020 – Presente)\n- Cartera B2B y CRM.\n- +18% ventas cruzadas en 12 meses.\n\nEjecutiva de cuentas — Retail Plus (2017 – 2020)\n- Canal tienda y e-commerce.";
+    el("habilidades").value = "Negociación, CRM, Excel, presentaciones, trabajo en equipo";
+    el("idiomas").value = "Español — Nativo\nInglés — Intermedio alto";
+    el("masInformacion").value = "Licencia de conducir\nDisponibilidad nacional";
+    el("plantilla").value = "editorial";
+    sincronizarAriaPlantillas("editorial");
     generarCV(true);
-    mostrarMensajeExito("Ejemplo cargado. Puedes cambiar plantilla y pulsar Generar CV.");
+    mostrarMensajeExito("Ejemplo cargado. Prueba Corporativo y Minimal.");
 }
-
-document.getElementById("btnGenerarIA").addEventListener("click", function () {
-    if (!esPremium()) {
-        alert("🔒 Solo disponible en versión Premium.");
-        return;
-    }
-    generarPerfilIA();
-});
 
 document.addEventListener("DOMContentLoaded", function () {
+    aplicarTemaInicial();
+    const y = el("footerYear");
+    if (y) y.textContent = String(new Date().getFullYear());
     actualizarUI();
+
+    document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        const modal = el("modalPago");
+        if (modal && !modal.hidden) {
+            e.preventDefault();
+            cancelarActivacionPremiumPendiente();
+        }
+    });
+
+    const btnIA = el("btnGenerarIA");
+    if (btnIA) {
+        btnIA.addEventListener("click", function () {
+            if (!esPremium()) {
+                alert("Solo disponible en versión Premium.");
+                return;
+            }
+            generarPerfilIA();
+        });
+    }
+
+    window.setTimeout(function () {
+        intentarMostrarModalRetornoPago();
+    }, 400);
 });

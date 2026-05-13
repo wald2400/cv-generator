@@ -1,0 +1,10 @@
+# Opcional: despliegue en Netlify (arrastra la carpeta o conecta Git)
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrega académica — CV Studio</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <style>
+        .entrega { max-width: 720px; margin: 0 auto; padding: 2rem 1.1rem 3rem; text-align: left; color: #e2e8f0; }
+        .entrega h1 { font-size: 1.4rem; margin-top: 0; color: #f8fafc; }
+        .entrega h2 { font-size: 1.05rem; margin-top: 1.75rem; color: #cbd5e1; }
+        .entrega p, .entrega li { font-size: 0.92rem; line-height: 1.55; color: #94a3b8; }
+        .entrega ul { padding-left: 1.2rem; }
+        .entrega a { color: #38bdf8; font-weight: 600; }
+        .entrega__back { display: inline-block; margin-bottom: 1.25rem; }
+        .entrega__box { background: rgba(30, 41, 59, 0.55); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 1rem 1.1rem; margin: 1rem 0; }
+    </style>
+</head>
+<body>
+    <main class="entrega">
+        <a class="entrega__back" href="index.html">← Volver a la app</a>
+        <h1>Documentación para entrega académica</h1>
+        <p>El documento <strong>completo</strong> (tablas, diagrama Mermaid, checklist y referencias) está en el repositorio como archivo Markdown: abre <code>ENTREGA.md</code> con el visor de tu editor o en GitHub.</p>
+        <div class="entrega__box">
+            <p style="margin:0;"><strong>Antes de entregar:</strong> reemplaza en <code>index.html</code> el meta <code>author</code> y rellena los corchetes en <code>ENTREGA.md</code> (nombre, institución, asignatura, fecha).</p>
+        </div>
+        <h2>Qué incluye el proyecto</h2>
+        <ul>
+            <li>Generador de CV con 3 plantillas y vista previa.</li>
+            <li>Exportación a PDF multipágina (html2canvas + jsPDF).</li>
+            <li>Guardado de borrador en localStorage; validación de formulario.</li>
+            <li>Modelo freemium / Premium (educativo; sin backend).</li>
+            <li>IA opcional (OpenAI) con clave del usuario.</li>
+            <li>README con despliegue y roadmap de backend legal.</li>
+        </ul>
+        <h2>Archivos clave para el profesor</h2>
+        <ul>
+            <li><code>README.md</code> — cómo ejecutar y desplegar.</li>
+            <li><code>ENTREGA.md</code> — memoria técnica y criterios de defensa.</li>
+            <li><code>legal.html</code> — plantilla de avisos legales.</li>
+        </ul>
+    </main>
+</body>
+</html>

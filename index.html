@@ -3,124 +3,203 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CV Generator Pro</title>
+    <meta name="description" content="Crea y descarga tu currículum en PDF: plantillas profesionales, vista previa y opción Premium sin marcas.">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="author" content="[Tu nombre] — Proyecto final CV Studio">
+    <meta property="og:title" content="CV Studio — Currículum en PDF">
+    <meta property="og:description" content="Plantillas Editorial, Corporativo y Minimal. PDF multipágina. Tus datos en tu navegador.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://TU-DOMINIO.com/">
+    <meta name="twitter:card" content="summary">
+    <title>CV Studio — Currículum en PDF</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Playfair+Display:wght@600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
+<noscript>
+    <p style="margin:0;padding:12px 16px;background:#7f1d1d;color:#fecaca;text-align:center;font-family:system-ui,sans-serif;">CV Studio necesita JavaScript activado para generar el CV y el PDF.</p>
+</noscript>
+<a class="skip-link" href="#contenido-principal">Ir al contenido principal</a>
 
+<header class="shell">
 <nav class="navbar" aria-label="Principal">
-    <h2 class="navbar__title">CV Pro</h2>
+    <div class="navbar__brand">
+        <span class="navbar__logo" aria-hidden="true">CV</span>
+        <div>
+            <h2 class="navbar__title">CV Studio</h2>
+            <p class="navbar__tagline">Currículum listo para enviar</p>
+        </div>
+    </div>
     <span class="navbar__spacer" aria-hidden="true"></span>
-    <span id="badgePremium" class="badge-premium" title="Suscripción activa">PREMIUM ACTIVO</span>
+    <span id="badgePremium" class="badge-premium" title="Suscripción activa">Premium</span>
     <div class="navbar__actions">
+        <button type="button" class="navbar__btn-theme" id="btnTema" onclick="alternarTema()" title="Cambiar tema claro / oscuro" aria-label="Alternar tema claro u oscuro">◐</button>
         <button type="button" class="navbar__btn-ejemplo" onclick="cargarEjemploCV()">Ver ejemplo</button>
-        <button type="button" onclick="guardarCV()">Guardar</button>
-        <button type="button" onclick="cargarCV()">Cargar</button>
+        <button type="button" class="navbar__btn-secondary" onclick="restaurarCompra()">Restaurar compra</button>
+        <button type="button" onclick="guardarCV()">Guardar borrador</button>
+        <button type="button" onclick="cargarCV()">Cargar borrador</button>
     </div>
 </nav>
+</header>
 
-<!-- Banner publicitario simulado 728×90 (solo usuarios gratuitos; se oculta con Premium vía JS/CSS) -->
 <div id="adTopBanner" class="ad-top" aria-label="Publicidad">
-    <span class="ad-top__tag">Patrocinado</span>
-    <!-- Google AdSense: descomenta y sustituye ca-pub-XXXX y data-ad-slot cuando tengas cuenta aprobada
+    <span class="ad-top__tag">Publicidad</span>
+    <!-- Google AdSense (descomenta con tu ca-pub y slot aprobados):
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
-    <ins class="adsbygoogle ad-top__ins" style="display:inline-block;width:728px;height:90px" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="YYYYYYYYYY"></ins>
+    <ins class="adsbygoogle" style="display:inline-block;width:728px;height:90px" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="YYYYYYYYYY"></ins>
     <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     -->
-    <a href="#" class="ad-top__creative" onclick="return false;" rel="nofollow noopener">
-        <span class="ad-top__headline">Espacio publicitario · Anúnciate aquí</span>
-        <span class="ad-top__sub">728 × 90 · Demostración de monetización (CV Generator Pro)</span>
+    <a href="https://www.google.com/intl/es_es/adsense/start/" class="ad-top__fallback" target="_blank" rel="noopener noreferrer">
+        <span class="ad-top__headline">Espacio publicitario (728×90)</span>
+        <span class="ad-top__sub">Sustituye por tu unidad AdSense u otra red cuando esté aprobada.</span>
     </a>
 </div>
 
-<!-- Banner de pago: Mercado Pago + verificación por código (sin activación falsa) -->
 <div id="paymentBanner" class="payment-banner">
-    <p class="payment-banner__text">Desbloquea PDF sin marca de agua, sin publicidad y generación de perfil con IA por <strong>$1 MXN</strong>. Tras pagar, introduce el código que recibas (o el de prueba académica).</p>
+    <p class="payment-banner__text"><strong>Premium</strong> — PDF sin marca de agua, sin banners y perfil con IA. Pago con Mercado Pago (ej. oferta simbólica); al volver, confirma la activación.</p>
+    <p class="payment-banner__note" id="paymentSessionNote" hidden></p>
     <div class="payment-banner__buttons">
-        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Pagar con Mercado Pago</button>
+        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Activar Premium</button>
     </div>
-    <div class="payment-banner__code">
-        <label class="payment-banner__code-label" for="codigoPremium">Código de activación</label>
-        <div class="payment-banner__code-row">
-            <input type="text" id="codigoPremium" class="payment-banner__code-input" placeholder="Ej. PREMIUM2024" autocomplete="off" spellcheck="false">
-            <button type="button" class="btn-pay btn-pay--verificar" onclick="verificarCodigoPremium()">Verificar y activar premium</button>
-        </div>
-        <p class="payment-banner__demo-hint"><strong>Para probar premium en clase:</strong> usa el código <code>PREMIUM2024</code> (tras simular el pago o como demo).</p>
-    </div>
+    <p class="payment-banner__legal">Sin servidor propio: se usa un token de sesión en el navegador. Si no confirmas el pago, no se activa Premium.</p>
 </div>
 
-<div class="container">
-    <h1 class="hero-title">CV Generator Pro</h1>
-    <p class="subtitle">Crea CVs profesionales en segundos</p>
+<main id="contenido-principal" class="container" tabindex="-1">
+    <div class="hero">
+        <h1 class="hero-title">Tu CV en minutos</h1>
+        <p class="subtitle">Rellena el formulario, elige plantilla y descarga un PDF multipágina nítido. Los datos se guardan solo en tu dispositivo.</p>
+    </div>
 
     <div class="grid">
-        <div class="card">
-            <h2>Datos</h2>
+        <section class="card card--form" aria-labelledby="formTitulo">
+            <h2 id="formTitulo">Datos</h2>
+            <p class="card__lead">Campos marcados con * son obligatorios para generar y exportar.</p>
 
-            <input type="text" id="nombre" placeholder="Nombre completo *" autocomplete="name">
-            <input type="text" id="tituloProfesional" placeholder="Título profesional (ej. Ingeniero de software)" autocomplete="organization-title">
-            <input type="text" id="ubicacion" placeholder="Ubicación (ciudad, país)" autocomplete="address-level2">
-            <input type="text" id="telefono" placeholder="Teléfono" autocomplete="tel">
-            <input type="email" id="correo" placeholder="Correo electrónico *" autocomplete="email">
+            <fieldset class="form-fieldset">
+                <legend class="form-fieldset__legend">Datos personales y contacto</legend>
+                <div class="form-grid">
+                    <input type="text" id="nombre" name="nombre" placeholder="Nombre completo *" autocomplete="name" required maxlength="120">
+                    <input type="text" id="tituloProfesional" name="tituloProfesional" placeholder="Puesto o titulación *" autocomplete="organization-title" required maxlength="100">
+                    <input type="text" id="ubicacion" name="ubicacion" placeholder="Ubicación (ciudad, país)" autocomplete="address-level2" maxlength="120">
+                    <input type="text" id="telefono" name="telefono" placeholder="Teléfono" autocomplete="tel" maxlength="40">
+                    <input type="email" id="correo" name="correo" class="form-grid__full" placeholder="Correo electrónico *" autocomplete="email" required maxlength="80" inputmode="email">
+                </div>
+            </fieldset>
 
             <label class="field-label" for="perfil">Perfil profesional</label>
-            <textarea id="perfil" rows="4" placeholder="Tu resumen profesional (vista previa y PDF)."></textarea>
+            <textarea id="perfil" rows="4" placeholder="Resumen breve (3–6 líneas) para reclutadores."></textarea>
+
+            <label class="field-label" for="educacion">Formación</label>
+            <textarea id="educacion" rows="4" placeholder="Años, centro, título. Puedes usar varios bloques separados por línea en blanco."></textarea>
+
+            <label class="field-label" for="experiencia">Experiencia laboral *</label>
+            <textarea id="experiencia" name="experiencia" rows="5" placeholder="Cargo — Empresa (fechas). Viñetas o párrafos." required maxlength="12000"></textarea>
+
+            <label class="field-label" for="habilidades">Habilidades</label>
+            <textarea id="habilidades" rows="3" placeholder="Separadas por comas o una por línea."></textarea>
+
+            <label class="field-label" for="idiomas">Idiomas</label>
+            <textarea id="idiomas" rows="2" placeholder="Ej. Inglés — C1"></textarea>
+
+            <label class="field-label" for="masInformacion">Información adicional (opcional)</label>
+            <textarea id="masInformacion" rows="2" placeholder="Carné, disponibilidad, certificaciones… (visible en plantilla Editorial)."></textarea>
 
             <div class="ia-block">
                 <label class="field-label" for="apiKey">OpenAI (opcional)</label>
-                <input type="password" id="apiKey" placeholder="API Key OpenAI (opcional)" autocomplete="off" spellcheck="false">
+                <input type="password" id="apiKey" placeholder="API Key (solo en tu navegador)" autocomplete="off" spellcheck="false">
                 <button type="button" id="btnGenerarIA" class="btn-ia">Generar perfil con IA</button>
                 <p class="hint hint--ia" id="hintIA">La IA requiere versión Premium.</p>
             </div>
 
-            <label class="field-label" for="experiencia">Experiencia laboral</label>
-            <textarea id="experiencia" placeholder="Experiencia laboral" rows="5"></textarea>
-            <label class="field-label" for="habilidades">Habilidades</label>
-            <textarea id="habilidades" placeholder="Una por línea o separadas por comas" rows="4"></textarea>
-            <label class="field-label" for="idiomas">Idiomas (opcional)</label>
-            <textarea id="idiomas" placeholder="Ej. Español — Nativo&#10;Inglés — Avanzado" rows="2"></textarea>
-
             <label class="field-label" for="foto">Foto (opcional)</label>
             <input type="file" id="foto" accept="image/*">
 
-            <h3>Plantillas</h3>
-            <div class="plantillas">
-                <div class="plantilla activa" data-tipo="clasico" onclick="seleccionarPlantilla('clasico', this)">Clásico</div>
-                <div class="plantilla" data-tipo="moderno" onclick="seleccionarPlantilla('moderno', this)">Moderno</div>
-                <div class="plantilla" data-tipo="ejecutivo" onclick="seleccionarPlantilla('ejecutivo', this)">Ejecutivo</div>
+            <h3 class="h3-templates" id="plantillasTitulo">Plantilla</h3>
+            <p class="hint hint--templates">Nombres descriptivos: el PDF respeta el alto completo (varias páginas si hace falta).</p>
+            <div class="plantillas" role="radiogroup" aria-labelledby="plantillasTitulo">
+                <button type="button" class="plantilla activa" data-tipo="editorial" aria-pressed="true" onclick="seleccionarPlantilla('editorial', this)">
+                    <span class="plantilla__name">Editorial</span>
+                    <span class="plantilla__meta">Dos columnas · barra de acento</span>
+                </button>
+                <button type="button" class="plantilla" data-tipo="corporate" aria-pressed="false" onclick="seleccionarPlantilla('corporate', this)">
+                    <span class="plantilla__name">Corporativo</span>
+                    <span class="plantilla__meta">Sidebar · barras de habilidad</span>
+                </button>
+                <button type="button" class="plantilla" data-tipo="minimal" aria-pressed="false" onclick="seleccionarPlantilla('minimal', this)">
+                    <span class="plantilla__name">Minimal</span>
+                    <span class="plantilla__meta">Monocromo · líneas limpias</span>
+                </button>
             </div>
-            <input type="hidden" id="plantilla" value="clasico">
+            <input type="hidden" id="plantilla" value="editorial">
 
-            <h3>Plantilla personalizada</h3>
+            <h3>Imagen propia (opcional)</h3>
+            <p class="hint">Si subes una imagen de plantilla, sustituye al diseño generado.</p>
             <input type="file" id="plantillaCustom" accept="image/*">
 
-            <button type="button" class="btn-primary" onclick="generarCV()">Generar CV</button>
-        </div>
+            <div class="form-toolbar">
+                <button type="button" class="btn-toolbar" onclick="exportarBorradorJSON()" aria-label="Exportar borrador como archivo JSON">Exportar JSON</button>
+                <button type="button" class="btn-toolbar" onclick="dispararImportarJSON()" aria-label="Importar borrador desde archivo JSON">Importar JSON</button>
+                <button type="button" class="btn-toolbar btn-toolbar--danger" onclick="limpiarFormularioCompleto()" aria-label="Vaciar todos los campos del formulario">Limpiar todo</button>
+                <input type="file" id="inputImportJson" class="visually-hidden" accept="application/json,.json" aria-hidden="true" tabindex="-1">
+            </div>
 
-        <div class="card">
-            <h2>Vista previa</h2>
-            <div id="preview" class="preview">Aquí aparecerá tu CV…</div>
-            <button type="button" class="btn-primary" onclick="descargarPDF()">Descargar PDF</button>
-            <p class="hint" id="hintPdfGratis">Versión gratuita: el PDF incluye marca de agua. Con Premium se omite.</p>
-        </div>
+            <div class="form-actions">
+                <button type="button" class="btn-primary" onclick="generarCV()">Actualizar vista</button>
+                <button type="button" class="btn-secondary" onclick="vistaPreviaCV()">Vista previa</button>
+            </div>
+        </section>
+
+        <section class="card card--preview" aria-labelledby="previewTitulo">
+            <h2 id="previewTitulo">Vista previa</h2>
+            <p class="card__lead card__lead--preview">Así se verá en el PDF. Desplázate si el CV es largo.</p>
+            <div id="announcerPreview" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div id="preview" class="preview" role="region" aria-label="Resultado del currículum">Completa los datos y pulsa «Actualizar vista».</div>
+            <button type="button" id="btnDescargarPdf" class="btn-primary btn-primary--pdf" onclick="descargarPDF()">Descargar PDF</button>
+            <p class="hint" id="hintPdfGratis">Gratis: pie de página en el PDF. Premium lo elimina y quita la publicidad de la web.</p>
+        </section>
     </div>
 
     <div id="adSlot" class="ad">
         <span class="ad__label">Publicidad</span>
-        <a href="#" class="ad__banner" onclick="return false;" rel="nofollow noopener">
-            <span class="ad__banner-title">Tu marca aquí</span>
-            <span class="ad__banner-meta">728 × 90 · Espacio reservado · CV Generator Pro</span>
+        <a href="https://www.amazon.com.mx/" class="ad__banner" target="_blank" rel="noopener noreferrer sponsored">
+            <span class="ad__banner-title">Espacio reservado — sustituye por tu enlace de afiliado o red</span>
+            <span class="ad__banner-meta">728 × 90</span>
         </a>
+    </div>
+</main>
+
+<footer class="site-footer">
+    <nav class="site-footer__nav" aria-label="Enlaces">
+        <a href="entrega.html">Documentación de entrega</a>
+        <span class="site-footer__sep" aria-hidden="true">·</span>
+        <a href="legal.html">Privacidad y avisos</a>
+        <span class="site-footer__sep" aria-hidden="true">·</span>
+        <a href="index.html">Inicio</a>
+    </nav>
+    <p class="site-footer__copy"><span id="footerYear">2026</span> · CV Studio · Tus datos se guardan en este navegador (localStorage) hasta que borres el sitio o el navegador.</p>
+</footer>
+
+<div id="modalPago" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalPagoTitulo" hidden>
+    <div class="modal__backdrop" role="presentation" tabindex="-1" onclick="cancelarActivacionPremiumPendiente()"></div>
+    <div class="modal__box" onclick="event.stopPropagation()">
+        <h3 id="modalPagoTitulo" class="modal__title">¿Completaste el pago?</h3>
+        <p class="modal__text">Si el cobro en Mercado Pago terminó correctamente, confirma aquí. Si aún no, cancela: no se activará Premium.</p>
+        <div class="modal__actions">
+            <button type="button" class="btn-pay btn-pay--activar" onclick="confirmarActivacionPremiumTrasPago()">Confirmar y activar Premium</button>
+            <button type="button" class="btn-pay btn-pay--ghost" onclick="cancelarActivacionPremiumPendiente()">Cancelar</button>
+        </div>
     </div>
 </div>
 
 <div id="msgExito" class="msg-exito" role="status" aria-live="polite" hidden></div>
+<div id="msgError" class="msg-error" role="alert" aria-live="assertive" hidden></div>
 
 <script src="script.js"></script>
 </body>
