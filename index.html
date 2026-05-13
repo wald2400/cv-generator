@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Generator Pro</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<nav class="navbar" aria-label="Principal">
+    <h2 class="navbar__title">CV Pro</h2>
+    <span class="navbar__spacer" aria-hidden="true"></span>
+    <span id="badgePremium" class="badge-premium" title="Suscripción activa">PREMIUM ACTIVO</span>
+    <div class="navbar__actions">
+        <button type="button" onclick="guardarCV()">Guardar</button>
+        <button type="button" onclick="cargarCV()">Cargar</button>
+    </div>
+</nav>
+
+<!-- Banner de pago (se oculta con Premium) -->
+<div id="paymentBanner" class="payment-banner">
+    <p class="payment-banner__text">Desbloquea PDF sin marca de agua, sin publicidad y generación de perfil con IA por <strong>$1 MXN</strong>.</p>
+    <div class="payment-banner__buttons">
+        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Activar Premium por $1 MXN</button>
+        <button type="button" class="btn-pay btn-pay--verificar" onclick="verificarPremium()">Ya pagué, verificar</button>
+    </div>
+</div>
+
+<div class="container">
+    <h1 class="hero-title">CV Generator Pro</h1>
+    <p class="subtitle">Crea CVs profesionales en segundos</p>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Datos</h2>
+
+            <input type="text" id="nombre" placeholder="Nombre completo" autocomplete="name">
+            <input type="text" id="telefono" placeholder="Teléfono" autocomplete="tel">
+            <input type="email" id="correo" placeholder="Correo" autocomplete="email">
+
+            <label class="field-label" for="perfil">Perfil profesional</label>
+            <textarea id="perfil" rows="4" placeholder="Tu resumen profesional (se usa en la vista previa y el PDF)."></textarea>
+
+            <div class="ia-block">
+                <label class="field-label" for="openaiApiKey">OpenAI (opcional)</label>
+                <input type="password" id="openaiApiKey" placeholder="API Key OpenAI (opcional)" autocomplete="off" spellcheck="false">
+                <button type="button" id="btnGenerarIA" class="btn-ia">Generar perfil con IA</button>
+                <p class="hint hint--ia" id="hintIA">La IA requiere versión Premium.</p>
+            </div>
+
+            <textarea id="experiencia" placeholder="Experiencia laboral" rows="5"></textarea>
+            <textarea id="habilidades" placeholder="Habilidades" rows="4"></textarea>
+
+            <label class="field-label" for="foto">Foto (opcional)</label>
+            <input type="file" id="foto" accept="image/*">
+
+            <h3>Plantillas</h3>
+            <div class="plantillas">
+                <div class="plantilla activa" data-tipo="clasico" onclick="seleccionarPlantilla('clasico', this)">Clásico</div>
+                <div class="plantilla" data-tipo="moderno" onclick="seleccionarPlantilla('moderno', this)">Moderno</div>
+                <div class="plantilla" data-tipo="elegante" onclick="seleccionarPlantilla('elegante', this)">Elegante</div>
+            </div>
+            <input type="hidden" id="plantilla" value="clasico">
+
+            <h3>Plantilla personalizada</h3>
+            <input type="file" id="plantillaCustom" accept="image/*">
+
+            <button type="button" class="btn-primary" onclick="generarCV()">Generar CV</button>
+        </div>
+
+        <div class="card">
+            <h2>Vista previa</h2>
+            <div id="preview" class="preview">Aquí aparecerá tu CV…</div>
+            <button type="button" class="btn-primary" onclick="descargarPDF()">Descargar PDF</button>
+            <p class="hint" id="hintPdfGratis">Versión gratuita: el PDF incluye marca de agua. Con Premium se omite.</p>
+        </div>
+    </div>
+
+    <div id="adSlot" class="ad">
+        <span class="ad__label">Publicidad</span>
+        <div class="ad__placeholder">Anuncio - 728×90</div>
+    </div>
+</div>
+
+<div id="msgExito" class="msg-exito" role="status" aria-live="polite" hidden></div>
+
+<script src="script.js"></script>
+</body>
+</html>
