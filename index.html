@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CV Generator Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -16,17 +19,39 @@
     <span class="navbar__spacer" aria-hidden="true"></span>
     <span id="badgePremium" class="badge-premium" title="Suscripción activa">PREMIUM ACTIVO</span>
     <div class="navbar__actions">
+        <button type="button" class="navbar__btn-ejemplo" onclick="cargarEjemploCV()">Ver ejemplo</button>
         <button type="button" onclick="guardarCV()">Guardar</button>
         <button type="button" onclick="cargarCV()">Cargar</button>
     </div>
 </nav>
 
-<!-- Banner de pago (se oculta con Premium) -->
+<!-- Banner publicitario simulado 728×90 (solo usuarios gratuitos; se oculta con Premium vía JS/CSS) -->
+<div id="adTopBanner" class="ad-top" aria-label="Publicidad">
+    <span class="ad-top__tag">Patrocinado</span>
+    <!-- Google AdSense: descomenta y sustituye ca-pub-XXXX y data-ad-slot cuando tengas cuenta aprobada
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+    <ins class="adsbygoogle ad-top__ins" style="display:inline-block;width:728px;height:90px" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="YYYYYYYYYY"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    -->
+    <a href="#" class="ad-top__creative" onclick="return false;" rel="nofollow noopener">
+        <span class="ad-top__headline">Espacio publicitario · Anúnciate aquí</span>
+        <span class="ad-top__sub">728 × 90 · Demostración de monetización (CV Generator Pro)</span>
+    </a>
+</div>
+
+<!-- Banner de pago: Mercado Pago + verificación por código (sin activación falsa) -->
 <div id="paymentBanner" class="payment-banner">
-    <p class="payment-banner__text">Desbloquea PDF sin marca de agua, sin publicidad y generación de perfil con IA por <strong>$1 MXN</strong>.</p>
+    <p class="payment-banner__text">Desbloquea PDF sin marca de agua, sin publicidad y generación de perfil con IA por <strong>$1 MXN</strong>. Tras pagar, introduce el código que recibas (o el de prueba académica).</p>
     <div class="payment-banner__buttons">
-        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Activar Premium por $1 MXN</button>
-        <button type="button" class="btn-pay btn-pay--verificar" onclick="verificarPremium()">Ya pagué, verificar</button>
+        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Pagar con Mercado Pago</button>
+    </div>
+    <div class="payment-banner__code">
+        <label class="payment-banner__code-label" for="codigoPremium">Código de activación</label>
+        <div class="payment-banner__code-row">
+            <input type="text" id="codigoPremium" class="payment-banner__code-input" placeholder="Ej. PREMIUM2024" autocomplete="off" spellcheck="false">
+            <button type="button" class="btn-pay btn-pay--verificar" onclick="verificarCodigoPremium()">Verificar y activar premium</button>
+        </div>
+        <p class="payment-banner__demo-hint"><strong>Para probar premium en clase:</strong> usa el código <code>PREMIUM2024</code> (tras simular el pago o como demo).</p>
     </div>
 </div>
 
@@ -38,13 +63,14 @@
         <div class="card">
             <h2>Datos</h2>
 
-            <input type="text" id="nombre" placeholder="Nombre completo" autocomplete="name">
+            <input type="text" id="nombre" placeholder="Nombre completo *" autocomplete="name">
+            <input type="text" id="tituloProfesional" placeholder="Título profesional (ej. Ingeniero de software)" autocomplete="organization-title">
+            <input type="text" id="ubicacion" placeholder="Ubicación (ciudad, país)" autocomplete="address-level2">
             <input type="text" id="telefono" placeholder="Teléfono" autocomplete="tel">
-            <input type="email" id="correo" placeholder="Correo" autocomplete="email">
+            <input type="email" id="correo" placeholder="Correo electrónico *" autocomplete="email">
 
-            <!-- Un único campo #perfil en todo el documento (evita IDs duplicados) -->
             <label class="field-label" for="perfil">Perfil profesional</label>
-            <textarea id="perfil" rows="4" placeholder="Tu resumen profesional (se usa en la vista previa y el PDF)."></textarea>
+            <textarea id="perfil" rows="4" placeholder="Tu resumen profesional (vista previa y PDF)."></textarea>
 
             <div class="ia-block">
                 <label class="field-label" for="apiKey">OpenAI (opcional)</label>
@@ -53,8 +79,12 @@
                 <p class="hint hint--ia" id="hintIA">La IA requiere versión Premium.</p>
             </div>
 
+            <label class="field-label" for="experiencia">Experiencia laboral</label>
             <textarea id="experiencia" placeholder="Experiencia laboral" rows="5"></textarea>
-            <textarea id="habilidades" placeholder="Habilidades" rows="4"></textarea>
+            <label class="field-label" for="habilidades">Habilidades</label>
+            <textarea id="habilidades" placeholder="Una por línea o separadas por comas" rows="4"></textarea>
+            <label class="field-label" for="idiomas">Idiomas (opcional)</label>
+            <textarea id="idiomas" placeholder="Ej. Español — Nativo&#10;Inglés — Avanzado" rows="2"></textarea>
 
             <label class="field-label" for="foto">Foto (opcional)</label>
             <input type="file" id="foto" accept="image/*">
@@ -63,7 +93,7 @@
             <div class="plantillas">
                 <div class="plantilla activa" data-tipo="clasico" onclick="seleccionarPlantilla('clasico', this)">Clásico</div>
                 <div class="plantilla" data-tipo="moderno" onclick="seleccionarPlantilla('moderno', this)">Moderno</div>
-                <div class="plantilla" data-tipo="elegante" onclick="seleccionarPlantilla('elegante', this)">Elegante</div>
+                <div class="plantilla" data-tipo="ejecutivo" onclick="seleccionarPlantilla('ejecutivo', this)">Ejecutivo</div>
             </div>
             <input type="hidden" id="plantilla" value="clasico">
 
@@ -83,7 +113,10 @@
 
     <div id="adSlot" class="ad">
         <span class="ad__label">Publicidad</span>
-        <div class="ad__placeholder">Anuncio - 728×90</div>
+        <a href="#" class="ad__banner" onclick="return false;" rel="nofollow noopener">
+            <span class="ad__banner-title">Tu marca aquí</span>
+            <span class="ad__banner-meta">728 × 90 · Espacio reservado · CV Generator Pro</span>
+        </a>
     </div>
 </div>
 
