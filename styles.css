@@ -39,21 +39,20 @@ body {
     gap: 8px;
 }
 
-/* Badge PREMIUM: oculto por defecto; se muestra con body.is-premium */
-.badge-premium {
+#badgePremium {
+    background: #f59e0b;
+    color: #1e293b;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    margin-left: 10px;
     display: none;
     align-items: center;
-    margin-right: 4px;
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 700;
     letter-spacing: 0.06em;
-    background: #f59e0b;
-    color: #1c1917;
 }
 
-body.is-premium .badge-premium {
+body.is-premium #badgePremium {
     display: inline-flex;
 }
 

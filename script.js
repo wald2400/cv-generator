@@ -43,6 +43,10 @@ function actualizarUIPremium() {
     const premium = esPremium();
     document.body.classList.toggle("is-premium", premium);
 
+    document.querySelectorAll(".ad").forEach((el) => {
+        el.style.display = premium ? "none" : "";
+    });
+
     const hintPdf = document.getElementById("hintPdfGratis");
     if (hintPdf) hintPdf.style.display = premium ? "none" : "";
 
@@ -144,7 +148,7 @@ function perfilFallbackLocal(experiencia, habilidades) {
     );
 }
 
-async function generarPerfilConIA() {
+async function generarPerfilIA() {
     if (!esPremium()) {
         alert("Solo disponible en versión Premium");
         return;
@@ -170,7 +174,7 @@ async function generarPerfilConIA() {
 
         const userPrompt =
             `Experiencia:\n${experiencia || "(no indicada)"}\n\nHabilidades:\n${habilidades || "(no indicadas)"}\n\n` +
-            `Redacta un párrafo de perfil profesional en español, 3-4 líneas, tono formal, sin viñetas ni inventar datos que no estén en el texto.`;
+            `Redacta un perfil profesional en español de exactamente 3 líneas (tres líneas de texto corrido), tono formal, sin viñetas ni inventar datos que no estén en el texto.`;
 
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -183,7 +187,8 @@ async function generarPerfilConIA() {
                 messages: [
                     {
                         role: "system",
-                        content: "Eres redactor de CVs. Responde solo con el párrafo de perfil, sin comillas.",
+                        content:
+                            "Eres redactor de CVs. Responde solo con el perfil profesional en español, exactamente 3 líneas, sin comillas ni encabezados.",
                     },
                     { role: "user", content: userPrompt },
                 ],
@@ -214,49 +219,47 @@ async function generarPerfilConIA() {
     }
 }
 
-function aplicarMarcaDeAguaCanvas(canvas, texto) {
-    const c = document.createElement("canvas");
-    c.width = canvas.width;
-    c.height = canvas.height;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(canvas, 0, 0);
-    ctx.save();
-    ctx.translate(c.width / 2, c.height / 2);
-    ctx.rotate(-0.35);
-    const fontSize = Math.max(16, Math.floor(c.width / 26));
-    ctx.font = "600 " + fontSize + "px Poppins, system-ui, sans-serif";
-    ctx.fillStyle = "rgba(15, 23, 42, 0.14)";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(texto, 0, 0);
-    ctx.restore();
-    return c;
-}
-
 function descargarPDF() {
     const { jsPDF } = window.jspdf;
     const preview = document.getElementById("preview");
     const premium = esPremium();
 
     html2canvas(preview, { scale: 2, useCORS: true, logging: false }).then((canvas) => {
-        let finalCanvas = canvas;
-        if (!premium) {
-            finalCanvas = aplicarMarcaDeAguaCanvas(canvas, "Creado con CV Pro - Versión gratuita");
-        }
-        const imgData = finalCanvas.toDataURL("image/png");
+        const imgData = canvas.toDataURL("image/png");
         const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
         const pageW = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
         const margin = 10;
         const maxW = pageW - margin * 2;
-        const ratio = finalCanvas.height / finalCanvas.width;
+        const ratio = canvas.height / canvas.width;
         let imgW = maxW;
         let imgH = imgW * ratio;
         if (imgH > pageH - margin * 2) {
             imgH = pageH - margin * 2;
             imgW = imgH / ratio;
         }
-        doc.addImage(imgData, "PNG", (pageW - imgW) / 2, margin, imgW, imgH);
+        const xImg = (pageW - imgW) / 2;
+        const yImg = margin;
+        doc.addImage(imgData, "PNG", xImg, yImg, imgW, imgH);
+
+        if (!premium) {
+            const marca = "Creado con CV Pro - Versión gratuita";
+            doc.saveGraphicsState();
+            try {
+                doc.setGState(new doc.GState({ opacity: 0.1, "stroke-opacity": 0.1 }));
+                doc.setTextColor(120, 120, 120);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(22);
+                doc.text(marca, pageW / 2, pageH / 2, {
+                    angle: 45,
+                    align: "center",
+                    baseline: "middle",
+                });
+            } finally {
+                doc.restoreGraphicsState();
+            }
+        }
+
         doc.save(premium ? "CV-Pro-Premium.pdf" : "CV-Pro-Gratis.pdf");
     });
 }
@@ -319,7 +322,7 @@ document.getElementById("btnGenerarIA").addEventListener("click", function () {
         alert("Solo disponible en versión Premium");
         return;
     }
-    generarPerfilConIA();
+    generarPerfilIA();
 });
 
 document.addEventListener("DOMContentLoaded", function () {
