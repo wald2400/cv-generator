@@ -3,6 +3,8 @@ const MERCADOPAGO_URL = "https://mpago.la/2681dcq";
 
 const OPENAI_MODEL = "gpt-3.5-turbo";
 const STORAGE_CV = "cvData";
+/** Clave propia: evita que otra app en el mismo origen use `localStorage.premium` y active Premium por error */
+const STORAGE_PREMIUM = "cvGeneratorPro_premium_v1";
 
 let plantillaCustomURL = "";
 
@@ -14,7 +16,25 @@ document.getElementById("plantillaCustom").addEventListener("change", function (
 });
 
 function esPremium() {
-    return localStorage.getItem("premium") === "true";
+    return localStorage.getItem(STORAGE_PREMIUM) === "true";
+}
+
+function migrarPremiumDesdeClaveGenerica() {
+    localStorage.removeItem("premium");
+}
+
+function usarModoGratis() {
+    localStorage.removeItem(STORAGE_PREMIUM);
+    localStorage.removeItem("premium");
+    actualizarUIPremium();
+    actualizarVisibilidadAnunciosPremium();
+    mostrarMensajeExito("Modo gratis: publicidad y límites gratuitos activos.");
+}
+
+function actualizarVisibilidadAnunciosPremium() {
+    document.querySelectorAll(".ad").forEach((el) => {
+        el.style.display = esPremium() ? "none" : "";
+    });
 }
 
 function activarPremium() {
@@ -22,8 +42,17 @@ function activarPremium() {
 }
 
 function verificarPremium() {
-    localStorage.setItem("premium", "true");
+    if (
+        !confirm(
+            "¿Ya completaste el pago de $1 MXN en Mercado Pago? Solo pulsa Aceptar si es verdad; si no, Cancelar."
+        )
+    ) {
+        return;
+    }
+    localStorage.setItem(STORAGE_PREMIUM, "true");
+    localStorage.removeItem("premium");
     actualizarUIPremium();
+    actualizarVisibilidadAnunciosPremium();
     alert("¡Premium activado!");
     mostrarMensajeExito("Premium activo. Ya puedes usar todas las funciones.");
 }
@@ -43,9 +72,7 @@ function actualizarUIPremium() {
     const premium = esPremium();
     document.body.classList.toggle("is-premium", premium);
 
-    document.querySelectorAll(".ad").forEach((el) => {
-        el.style.display = premium ? "none" : "";
-    });
+    actualizarVisibilidadAnunciosPremium();
 
     const hintPdf = document.getElementById("hintPdfGratis");
     if (hintPdf) hintPdf.style.display = premium ? "none" : "";
@@ -60,8 +87,15 @@ function actualizarUIPremium() {
     const btnIA = document.getElementById("btnGenerarIA");
     if (btnIA) {
         btnIA.classList.toggle("btn-disabled", !premium);
-        btnIA.setAttribute("aria-disabled", premium ? "false" : "true");
+        if (premium) {
+            btnIA.removeAttribute("aria-disabled");
+        } else {
+            btnIA.setAttribute("aria-disabled", "true");
+        }
     }
+
+    const btnModoGratis = document.getElementById("btnModoGratis");
+    if (btnModoGratis) btnModoGratis.hidden = !premium;
 }
 
 function seleccionarPlantilla(tipo, elemento) {
@@ -273,7 +307,7 @@ function guardarCV() {
         experiencia: document.getElementById("experiencia").value,
         habilidades: document.getElementById("habilidades").value,
         plantilla: document.getElementById("plantilla").value,
-        premium: localStorage.getItem("premium") === "true" ? "true" : "false",
+        premium: esPremium() ? "true" : "false",
     };
     localStorage.setItem(STORAGE_CV, JSON.stringify(data));
     alert("CV guardado");
@@ -302,8 +336,10 @@ function cargarCV() {
     document.getElementById("plantilla").value = data.plantilla || "clasico";
 
     if (data.premium === "true") {
-        localStorage.setItem("premium", "true");
+        localStorage.setItem(STORAGE_PREMIUM, "true");
+        localStorage.removeItem("premium");
     } else if (data.premium === "false") {
+        localStorage.removeItem(STORAGE_PREMIUM);
         localStorage.removeItem("premium");
     }
 
@@ -326,5 +362,7 @@ document.getElementById("btnGenerarIA").addEventListener("click", function () {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
+    migrarPremiumDesdeClaveGenerica();
     actualizarUIPremium();
+    actualizarVisibilidadAnunciosPremium();
 });

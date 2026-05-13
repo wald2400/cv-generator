@@ -37,6 +37,25 @@ body {
 .navbar__actions {
     display: flex;
     gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.navbar__btn-gratis {
+    padding: 8px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.navbar__btn-gratis:hover {
+    color: #e2e8f0;
+    border-color: #94a3b8;
 }
 
 #badgePremium {
