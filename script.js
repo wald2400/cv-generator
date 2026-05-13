@@ -48,9 +48,15 @@ function actualizarUI() {
         badge.style.display = premium ? "inline-block" : "none";
     }
 
-    document.querySelectorAll(".ad").forEach((ad) => {
-        ad.style.display = premium ? "none" : "block";
-    });
+    if (esPremium()) {
+        const ad = document.querySelector(".ad");
+        if (ad) ad.style.display = "none";
+    } else {
+        const ad = document.querySelector(".ad");
+        if (ad) ad.style.display = "block";
+        const paymentBanner = document.getElementById("paymentBanner");
+        if (paymentBanner) paymentBanner.style.display = "block";
+    }
 
     const hintPdf = document.getElementById("hintPdfGratis");
     if (hintPdf) hintPdf.style.display = premium ? "none" : "";
@@ -170,7 +176,11 @@ async function generarPerfilIA() {
         return;
     }
 
-    const apiKey = document.getElementById("apiKey")?.value.trim() || "";
+    const perfilField = document.getElementById("perfil");
+    if (!perfilField) return;
+
+    const apiKeyInput = document.getElementById("apiKey");
+    const apiKey = (apiKeyInput && apiKeyInput.value.trim()) || "";
     const btn = document.getElementById("btnGenerarIA");
     const label = btn ? btn.textContent : "";
     if (btn) {
@@ -180,7 +190,7 @@ async function generarPerfilIA() {
 
     try {
         if (!apiKey) {
-            document.getElementById("perfil").value = perfilFallbackLocal(experiencia, habilidades);
+            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
             mostrarMensajeExito("Perfil generado (modo local, sin API Key).");
             generarCV();
             return;
@@ -188,42 +198,63 @@ async function generarPerfilIA() {
 
         const userPrompt =
             `Experiencia:\n${experiencia || "(no indicada)"}\n\nHabilidades:\n${habilidades || "(no indicadas)"}\n\n` +
-            `Redacta un perfil profesional en español de exactamente 3 líneas (tres líneas de texto corrido), tono formal, sin viñetas ni inventar datos que no estén en el texto.`;
+            `Genera un perfil profesional en español de 3 a 4 líneas, tono formal, sin viñetas ni inventar datos que no aparezcan en el texto.`;
 
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + apiKey,
-            },
-            body: JSON.stringify({
-                model: OPENAI_MODEL,
-                messages: [
-                    {
-                        role: "system",
-                        content:
-                            "Eres redactor de CVs. Responde solo con el perfil profesional en español, exactamente 3 líneas, sin comillas ni encabezados.",
-                    },
-                    { role: "user", content: userPrompt },
-                ],
-                max_tokens: 350,
-                temperature: 0.7,
-            }),
-        });
+        let texto = "";
+        try {
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + apiKey,
+                },
+                body: JSON.stringify({
+                    model: OPENAI_MODEL,
+                    messages: [
+                        {
+                            role: "system",
+                            content:
+                                "Eres redactor de CVs. Responde solo con el texto del perfil profesional en español, entre 3 y 4 líneas, sin comillas ni encabezados.",
+                        },
+                        { role: "user", content: userPrompt },
+                    ],
+                    max_tokens: 400,
+                    temperature: 0.7,
+                }),
+            });
 
-        if (!res.ok) throw new Error(await res.text());
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
 
-        const data = await res.json();
-        const texto = data.choices?.[0]?.message?.content?.trim();
-        if (!texto) throw new Error("Vacío");
+            const data = await res.json();
+            texto = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
+                ? String(data.choices[0].message.content).trim()
+                : "");
+            if (!texto) {
+                throw new Error("Respuesta vacía");
+            }
+        } catch (errRedApi) {
+            console.error(errRedApi);
+            texto = "";
+        }
 
-        document.getElementById("perfil").value = texto;
-        mostrarMensajeExito("Perfil generado con OpenAI.");
+        if (!texto) {
+            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
+            mostrarMensajeExito("No se pudo usar la API; se aplicó texto local de respaldo.");
+        } else {
+            perfilField.value = texto;
+            mostrarMensajeExito("Perfil generado con OpenAI.");
+        }
         generarCV();
     } catch (e) {
         console.error(e);
-        document.getElementById("perfil").value = perfilFallbackLocal(experiencia, habilidades);
-        mostrarMensajeExito("No se pudo usar la API; se aplicó texto local de respaldo.");
+        try {
+            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
+            mostrarMensajeExito("Error al generar el perfil; se aplicó texto local de respaldo.");
+        } catch (e2) {
+            console.error(e2);
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -256,22 +287,10 @@ function descargarPDF() {
         const yImg = margin;
         doc.addImage(imgData, "PNG", xImg, yImg, imgW, imgH);
 
-        if (!premium) {
-            const marca = "Creado con CV Pro - Versión gratuita";
-            doc.saveGraphicsState();
-            try {
-                doc.setGState(new doc.GState({ opacity: 0.1, "stroke-opacity": 0.1 }));
-                doc.setTextColor(120, 120, 120);
-                doc.setFont("helvetica", "bold");
-                doc.setFontSize(22);
-                doc.text(marca, pageW / 2, pageH / 2, {
-                    angle: 45,
-                    align: "center",
-                    baseline: "middle",
-                });
-            } finally {
-                doc.restoreGraphicsState();
-            }
+        if (!esPremium()) {
+            doc.setFontSize(12);
+            doc.setTextColor(150, 150, 150);
+            doc.text("Creado con CV Pro - Versión gratuita", 10, 280);
         }
 
         doc.save(premium ? "CV-Pro-Premium.pdf" : "CV-Pro-Gratis.pdf");
