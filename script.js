@@ -98,7 +98,30 @@ function obtenerPerfilTexto() {
     return "Persona responsable, con habilidades de trabajo en equipo y orientación a resultados.";
 }
 
-function generarCV() {
+function validarFormulario() {
+    const nombre = (document.getElementById("nombre") && document.getElementById("nombre").value.trim()) || "";
+    const correo = (document.getElementById("correo") && document.getElementById("correo").value.trim()) || "";
+
+    if (!nombre) {
+        alert("Por favor completa el campo: Nombre completo.");
+        return false;
+    }
+    if (!correo) {
+        alert("Por favor completa el campo: Correo electrónico.");
+        return false;
+    }
+    if (!correo.includes("@") || !correo.includes(".")) {
+        alert("El correo debe tener un formato válido (debe incluir @ y al menos un punto en el dominio).");
+        return false;
+    }
+    return true;
+}
+
+function generarCV(omitirValidacionFormulario) {
+    if (!omitirValidacionFormulario && !validarFormulario()) {
+        return;
+    }
+
     const nombre = document.getElementById("nombre").value;
     const telefono = document.getElementById("telefono").value;
     const correo = document.getElementById("correo").value;
@@ -163,6 +186,42 @@ function perfilFallbackLocal(experiencia, habilidades) {
     );
 }
 
+async function llamarOpenAIPerfil(apiKey, userPrompt) {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + apiKey,
+        },
+        body: JSON.stringify({
+            model: OPENAI_MODEL,
+            messages: [
+                {
+                    role: "system",
+                    content:
+                        "Eres redactor de CVs. Responde solo con el texto del perfil profesional en español, entre 3 y 4 líneas, sin comillas ni encabezados.",
+                },
+                { role: "user", content: userPrompt },
+            ],
+            max_tokens: 400,
+            temperature: 0.7,
+        }),
+    });
+    if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error("HTTP " + res.status + ": " + errBody.slice(0, 300));
+    }
+    const data = await res.json();
+    const t =
+        data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
+            ? String(data.choices[0].message.content).trim()
+            : "";
+    if (!t) {
+        throw new Error("Respuesta vacía de la API");
+    }
+    return t;
+}
+
 async function generarPerfilIA() {
     if (!esPremium()) {
         alert("🔒 Solo disponible en versión Premium");
@@ -180,7 +239,8 @@ async function generarPerfilIA() {
     if (!perfilField) return;
 
     const apiKeyInput = document.getElementById("apiKey");
-    const apiKey = (apiKeyInput && apiKeyInput.value.trim()) || "";
+    const apiKeyRaw = apiKeyInput ? apiKeyInput.value : "";
+    const apiKey = apiKeyRaw.trim();
     const btn = document.getElementById("btnGenerarIA");
     const label = btn ? btn.textContent : "";
     if (btn) {
@@ -189,69 +249,37 @@ async function generarPerfilIA() {
     }
 
     try {
-        if (!apiKey) {
-            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
-            mostrarMensajeExito("Perfil generado (modo local, sin API Key).");
-            generarCV();
-            return;
-        }
-
         const userPrompt =
             `Experiencia:\n${experiencia || "(no indicada)"}\n\nHabilidades:\n${habilidades || "(no indicadas)"}\n\n` +
             `Genera un perfil profesional en español de 3 a 4 líneas, tono formal, sin viñetas ni inventar datos que no aparezcan en el texto.`;
 
+        if (!apiKey) {
+            console.log("[CV Generator] Fallback local — motivo: API Key vacía; no se llama a OpenAI.");
+            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
+            mostrarMensajeExito("Perfil generado (modo local, sin API Key).");
+            generarCV(true);
+            return;
+        }
+
         let texto = "";
         try {
-            const res = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + apiKey,
-                },
-                body: JSON.stringify({
-                    model: OPENAI_MODEL,
-                    messages: [
-                        {
-                            role: "system",
-                            content:
-                                "Eres redactor de CVs. Responde solo con el texto del perfil profesional en español, entre 3 y 4 líneas, sin comillas ni encabezados.",
-                        },
-                        { role: "user", content: userPrompt },
-                    ],
-                    max_tokens: 400,
-                    temperature: 0.7,
-                }),
-            });
-
-            if (!res.ok) {
-                throw new Error(await res.text());
-            }
-
-            const data = await res.json();
-            texto = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
-                ? String(data.choices[0].message.content).trim()
-                : "");
-            if (!texto) {
-                throw new Error("Respuesta vacía");
-            }
-        } catch (errRedApi) {
-            console.error(errRedApi);
-            texto = "";
+            texto = await llamarOpenAIPerfil(apiKey, userPrompt);
+        } catch (primerError) {
+            console.warn("[CV Generator] Primer intento OpenAI fallido; reintentando una vez más.", primerError);
+            texto = await llamarOpenAIPerfil(apiKey, userPrompt);
         }
 
-        if (!texto) {
-            perfilField.value = perfilFallbackLocal(experiencia, habilidades);
-            mostrarMensajeExito("No se pudo usar la API; se aplicó texto local de respaldo.");
-        } else {
-            perfilField.value = texto;
-            mostrarMensajeExito("Perfil generado con OpenAI.");
-        }
-        generarCV();
+        perfilField.value = texto;
+        mostrarMensajeExito("Perfil generado con OpenAI.");
+        generarCV(true);
     } catch (e) {
+        const motivo = e && e.message ? e.message : String(e);
+        console.log("[CV Generator] Fallback local — motivo: error de red o API tras reintento.", motivo);
         console.error(e);
         try {
             perfilField.value = perfilFallbackLocal(experiencia, habilidades);
-            mostrarMensajeExito("Error al generar el perfil; se aplicó texto local de respaldo.");
+            mostrarMensajeExito("No se pudo usar la API; se aplicó texto local de respaldo.");
+            generarCV(true);
         } catch (e2) {
             console.error(e2);
         }
@@ -265,6 +293,10 @@ async function generarPerfilIA() {
 }
 
 function descargarPDF() {
+    if (!validarFormulario()) {
+        return;
+    }
+
     const { jsPDF } = window.jspdf;
     const preview = document.getElementById("preview");
     const premium = esPremium();
@@ -346,7 +378,7 @@ function cargarCV() {
     if (activa) activa.classList.add("activa");
 
     actualizarUI();
-    generarCV();
+    generarCV(true);
     alert("CV cargado");
 }
 

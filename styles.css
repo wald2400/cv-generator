@@ -207,6 +207,11 @@ textarea {
     border: 1px solid rgba(148, 163, 184, 0.15);
 }
 
+/* API Key vacía: borde ámbar (opcional pero recomendado) */
+#apiKey:placeholder-shown {
+    border-color: #f59e0b;
+}
+
 .btn-ia {
     width: 100%;
     margin-top: 8px;
