@@ -16,7 +16,6 @@
     <span class="navbar__spacer" aria-hidden="true"></span>
     <span id="badgePremium" class="badge-premium" title="Suscripción activa">PREMIUM ACTIVO</span>
     <div class="navbar__actions">
-        <button type="button" id="btnModoGratis" class="navbar__btn-gratis" hidden onclick="usarModoGratis()">Modo gratis</button>
         <button type="button" onclick="guardarCV()">Guardar</button>
         <button type="button" onclick="cargarCV()">Cargar</button>
     </div>
@@ -47,8 +46,8 @@
             <textarea id="perfil" rows="4" placeholder="Tu resumen profesional (se usa en la vista previa y el PDF)."></textarea>
 
             <div class="ia-block">
-                <label class="field-label" for="openaiApiKey">OpenAI (opcional)</label>
-                <input type="password" id="openaiApiKey" placeholder="API Key OpenAI (opcional)" autocomplete="off" spellcheck="false">
+                <label class="field-label" for="apiKey">OpenAI (opcional)</label>
+                <input type="password" id="apiKey" placeholder="API Key OpenAI (opcional)" autocomplete="off" spellcheck="false">
                 <button type="button" id="btnGenerarIA" class="btn-ia">Generar perfil con IA</button>
                 <p class="hint hint--ia" id="hintIA">La IA requiere versión Premium.</p>
             </div>

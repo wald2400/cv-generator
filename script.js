@@ -3,8 +3,6 @@ const MERCADOPAGO_URL = "https://mpago.la/2681dcq";
 
 const OPENAI_MODEL = "gpt-3.5-turbo";
 const STORAGE_CV = "cvData";
-/** Clave propia: evita que otra app en el mismo origen use `localStorage.premium` y active Premium por error */
-const STORAGE_PREMIUM = "cvGeneratorPro_premium_v1";
 
 let plantillaCustomURL = "";
 
@@ -16,44 +14,17 @@ document.getElementById("plantillaCustom").addEventListener("change", function (
 });
 
 function esPremium() {
-    return localStorage.getItem(STORAGE_PREMIUM) === "true";
-}
-
-function migrarPremiumDesdeClaveGenerica() {
-    localStorage.removeItem("premium");
-}
-
-function usarModoGratis() {
-    localStorage.removeItem(STORAGE_PREMIUM);
-    localStorage.removeItem("premium");
-    actualizarUIPremium();
-    actualizarVisibilidadAnunciosPremium();
-    mostrarMensajeExito("Modo gratis: publicidad y límites gratuitos activos.");
-}
-
-function actualizarVisibilidadAnunciosPremium() {
-    document.querySelectorAll(".ad").forEach((el) => {
-        el.style.display = esPremium() ? "none" : "";
-    });
+    return localStorage.getItem("premium") === "true";
 }
 
 function activarPremium() {
-    window.open(MERCADOPAGO_URL, "_blank", "noopener,noreferrer");
+    window.open(MERCADOPAGO_URL, "_blank");
 }
 
 function verificarPremium() {
-    if (
-        !confirm(
-            "¿Ya completaste el pago de $1 MXN en Mercado Pago? Solo pulsa Aceptar si es verdad; si no, Cancelar."
-        )
-    ) {
-        return;
-    }
-    localStorage.setItem(STORAGE_PREMIUM, "true");
-    localStorage.removeItem("premium");
-    actualizarUIPremium();
-    actualizarVisibilidadAnunciosPremium();
-    alert("¡Premium activado!");
+    localStorage.setItem("premium", "true");
+    actualizarUI();
+    alert("✅ ¡Premium activado! Disfruta todas las funciones.");
     mostrarMensajeExito("Premium activo. Ya puedes usar todas las funciones.");
 }
 
@@ -68,11 +39,18 @@ function mostrarMensajeExito(texto) {
     }, 3500);
 }
 
-function actualizarUIPremium() {
+function actualizarUI() {
     const premium = esPremium();
     document.body.classList.toggle("is-premium", premium);
 
-    actualizarVisibilidadAnunciosPremium();
+    const badge = document.getElementById("badgePremium");
+    if (badge) {
+        badge.style.display = premium ? "inline-block" : "none";
+    }
+
+    document.querySelectorAll(".ad").forEach((ad) => {
+        ad.style.display = premium ? "none" : "block";
+    });
 
     const hintPdf = document.getElementById("hintPdfGratis");
     if (hintPdf) hintPdf.style.display = premium ? "none" : "";
@@ -93,9 +71,6 @@ function actualizarUIPremium() {
             btnIA.setAttribute("aria-disabled", "true");
         }
     }
-
-    const btnModoGratis = document.getElementById("btnModoGratis");
-    if (btnModoGratis) btnModoGratis.hidden = !premium;
 }
 
 function seleccionarPlantilla(tipo, elemento) {
@@ -184,13 +159,18 @@ function perfilFallbackLocal(experiencia, habilidades) {
 
 async function generarPerfilIA() {
     if (!esPremium()) {
-        alert("Solo disponible en versión Premium");
+        alert("🔒 Solo disponible en versión Premium");
         return;
     }
 
     const experiencia = document.getElementById("experiencia").value.trim();
     const habilidades = document.getElementById("habilidades").value.trim();
-    const apiKey = (document.getElementById("openaiApiKey") && document.getElementById("openaiApiKey").value.trim()) || "";
+    if (!experiencia && !habilidades) {
+        alert("Primero ingresa tu experiencia o habilidades.");
+        return;
+    }
+
+    const apiKey = document.getElementById("apiKey")?.value.trim() || "";
     const btn = document.getElementById("btnGenerarIA");
     const label = btn ? btn.textContent : "";
     if (btn) {
@@ -249,7 +229,7 @@ async function generarPerfilIA() {
             btn.disabled = false;
             btn.textContent = label || "Generar perfil con IA";
         }
-        actualizarUIPremium();
+        actualizarUI();
     }
 }
 
@@ -336,10 +316,8 @@ function cargarCV() {
     document.getElementById("plantilla").value = data.plantilla || "clasico";
 
     if (data.premium === "true") {
-        localStorage.setItem(STORAGE_PREMIUM, "true");
-        localStorage.removeItem("premium");
+        localStorage.setItem("premium", "true");
     } else if (data.premium === "false") {
-        localStorage.removeItem(STORAGE_PREMIUM);
         localStorage.removeItem("premium");
     }
 
@@ -348,21 +326,28 @@ function cargarCV() {
     const activa = document.querySelector('.plantilla[data-tipo="' + tipo + '"]');
     if (activa) activa.classList.add("activa");
 
-    actualizarUIPremium();
+    actualizarUI();
     generarCV();
     alert("CV cargado");
 }
 
 document.getElementById("btnGenerarIA").addEventListener("click", function () {
     if (!esPremium()) {
-        alert("Solo disponible en versión Premium");
+        alert("🔒 Solo disponible en versión Premium");
         return;
     }
     generarPerfilIA();
 });
 
+function migrarClavePremiumAntigua() {
+    const old = localStorage.getItem("cvGeneratorPro_premium_v1");
+    if (old === "true" && localStorage.getItem("premium") !== "true") {
+        localStorage.setItem("premium", "true");
+    }
+    localStorage.removeItem("cvGeneratorPro_premium_v1");
+}
+
 document.addEventListener("DOMContentLoaded", function () {
-    migrarPremiumDesdeClaveGenerica();
-    actualizarUIPremium();
-    actualizarVisibilidadAnunciosPremium();
+    migrarClavePremiumAntigua();
+    actualizarUI();
 });
