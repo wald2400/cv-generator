@@ -22,7 +22,7 @@ Sustituye los campos entre corchetes antes de entregar: `[Tu nombre]`, `[Institu
 
 **CV Studio** es una aplicación web **estática** (HTML, CSS, JavaScript) que permite rellenar un formulario con datos profesionales, elegir entre **tres plantillas visuales** (Editorial, Corporativo, Minimal), previsualizar el resultado y **exportar un PDF multipágina** generado en el cliente con **html2canvas** y **jsPDF**.
 
-Incluye persistencia local (**localStorage**), validación de campos, un flujo **freemium** (publicidad simulada + marca en PDF en versión gratuita) y un prototipo de **Premium** enlazado a **Mercado Pago** con confirmación en el navegador (sin servidor propio), más generación de texto de perfil con **OpenAI** (opcional) cuando Premium está activo.
+Incluye persistencia local (**localStorage**), validación de campos, **banners de publicidad simulada** (solo en la web), **donación voluntaria** enlazada a **Mercado Pago** (sin desbloqueo en cliente ni servidor en esta versión) y generación de texto de perfil con **OpenAI** (opcional, con clave del usuario).
 
 ---
 
@@ -32,8 +32,8 @@ Incluye persistencia local (**localStorage**), validación de campos, un flujo *
 2. Implementar **tres diseños** distintos de currículum con HTML y estilos **inline** compatibles con la captura a imagen/PDF.
 3. Generar **PDF en formato A4**, con **varias páginas** si el contenido es largo, manteniendo proporción sin recortar texto por error de scroll.
 4. Aplicar **validación** en el cliente (nombre, correo, experiencia obligatorios).
-5. Integrar **persistencia** (borrador) y un modelo de **negocio simulado** (anuncios, Premium, pago externo).
-6. Documentar **limitaciones** (Premium no verificado sin backend) y **líneas futuras** de mejora.
+5. Integrar **persistencia** (borrador) y un modelo de **apoyo** (anuncios simulados, donación externa opcional).
+6. Documentar **limitaciones** (sin backend de pagos) y **líneas futuras** de mejora.
 
 ---
 
@@ -59,7 +59,6 @@ flowchart LR
     subgraph Cliente["Navegador del usuario"]
         UI[Formulario y plantillas]
         LS[(localStorage)]
-        SS[(sessionStorage pago)]
         Prev[Vista previa HTML]
         PDF[html2canvas + jsPDF]
     end
@@ -67,7 +66,7 @@ flowchart LR
     UI --> LS
     UI --> PDF
     Prev --> PDF
-    MP[Mercado Pago] -.->|Usuario paga en otra pestaña| SS
+    MP[Mercado Pago] -.->|Donación voluntaria| Usuario[Usuario]
 ```
 
 No hay **backend** en esta versión: los datos no se envían a un servidor del alumno salvo que el usuario use la API de OpenAI con su propia clave.
@@ -83,14 +82,12 @@ No hay **backend** en esta versión: los datos no se envían a un servidor del a
 - [x] Vista previa y PDF multipágina
 - [x] Guardar / cargar borrador (`localStorage`)
 - [x] Cargar ejemplo demo
-- [x] Versión gratuita con pie de texto en PDF y banners (simulación de monetización)
-- [x] Flujo Premium con enlace de pago y modal de confirmación (educativo; no verifica pago en servidor)
+- [x] **Donación** opcional con enlace a Mercado Pago (apoyo; no activa funciones en el sitio)
 - [x] Página legal de plantilla (`legal.html`) y `404.html`
 - [x] Manifest y favicon para PWA ligera
 - [x] Exportar / importar borrador en **JSON** (respaldo y portabilidad)
 - [x] **Limpiar formulario** con confirmación
 - [x] **Tema oscuro** (preferencia en `localStorage`)
-- [x] Cierre del modal de pago con **Escape** o clic fuera (backdrop)
 - [x] **Anuncio accesible** al actualizar la vista previa (`aria-live`)
 - [x] Revocación de **URLs blob** en la vista previa para evitar fugas de memoria
 
@@ -98,7 +95,7 @@ No hay **backend** en esta versión: los datos no se envían a un servidor del a
 
 ## 7. Limitaciones conocidas (honestidad académica)
 
-1. **Premium**: la activación tras pago depende de la confirmación del usuario en el modal; **no** hay verificación con webhook de Mercado Pago (eso requiere backend — descrito en `README.md`).
+1. **Donación**: el enlace abre Mercado Pago en otra pestaña; **no** hay backend que registre donaciones ni que desbloquee contenido. Es solo apoyo voluntario.
 2. **OpenAI**: la clave viaja desde el navegador; en producción real conviene **proxy** en servidor para no exponer la clave.
 3. **PDF**: depende de html2canvas; fuentes o iconos pueden variar levemente entre navegadores.
 4. **Accesibilidad**: mejorable (auditoría completa WCAG no incluida por defecto).
@@ -121,7 +118,7 @@ Abrir la URL indicada (por ejemplo `http://localhost:3000`). Opcional: adjuntar 
 
 | Prioridad | Mejora |
 |-----------|--------|
-| Alta | Backend + webhook de Mercado Pago para Premium **verificable** |
+| Alta | Backend + webhooks si en el futuro quieres **planes de pago verificables** o registro de donaciones |
 | Alta | Tests automatizados (p. ej. Vitest) para `validarFormulario` y `normalizarPlantillaGuardada` |
 | Media | Internacionalización (i18n) español / inglés |
 | Media | Exportar también a **.docx** o imprimir con `@media print` dedicado |

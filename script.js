@@ -1,7 +1,7 @@
 /**
  * CV Studio — generador de CV para web (proyecto estático).
  * Plantillas: Editorial, Corporativo, Minimal (HTML + CSS inline para PDF).
- * Premium: Mercado Pago + sesión UUID (sin backend; ver README y ENTREGA.md).
+ * Donación opcional vía Mercado Pago (enlace externo; sin desbloqueo en cliente).
  *
  * @author [Tu nombre]
  * @see ENTREGA.md — documentación para entrega académica
@@ -12,19 +12,15 @@
 const MERCADOPAGO_URL = "https://mpago.la/2681dcq";
 const OPENAI_MODEL = "gpt-3.5-turbo";
 const STORAGE_CV = "cvData";
-const SESSION_MP_TOKEN = "cv_mp_token";
-const SESSION_MP_STARTED = "cv_mp_started";
 
 /** Ancho lógico del CV en px (≈ A4 a ~96dpi, aspecto sobrio en pantalla y PDF). */
 const CV_PAGE_WIDTH_PX = 680;
 
 const PDF_MARGIN_MM = 12;
 const PDF_SCALE = 2;
-const PDF_FOOTER_FREE_MM = 9;
 
 const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STORAGE_THEME = "cvStudioTheme";
-const EXPORT_JSON_VERSION = 1;
 const PREVIEW_PLACEHOLDER =
     "Completa los datos y pulsa «Actualizar vista».";
 
@@ -32,7 +28,6 @@ const PREVIEW_PLACEHOLDER =
 let previewBlobUrls = [];
 
 let plantillaCustomURL = "";
-let modalPagoMostrado = false;
 
 const inputPlantillaCustom = document.getElementById("plantillaCustom");
 if (inputPlantillaCustom) {
@@ -58,84 +53,8 @@ if (inputFoto) {
     });
 }
 
-const inputImportJson = document.getElementById("inputImportJson");
-if (inputImportJson) {
-    inputImportJson.addEventListener("change", importarBorradorJSON);
-}
-
-function esPremium() {
-    return localStorage.getItem("premium") === "true";
-}
-
-function generarTokenSesionPago() {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    return "mp-" + Date.now() + "-" + Math.random().toString(36).slice(2, 12);
-}
-
-function activarPremium() {
-    const token = generarTokenSesionPago();
-    sessionStorage.setItem(SESSION_MP_TOKEN, token);
-    sessionStorage.setItem(SESSION_MP_STARTED, String(Date.now()));
-    modalPagoMostrado = false;
+function abrirDonacionMercadoPago() {
     window.open(MERCADOPAGO_URL, "_blank", "noopener,noreferrer");
-    const note = document.getElementById("paymentSessionNote");
-    if (note) {
-        note.textContent =
-            "Sesión de pago iniciada. Vuelve a esta pestaña tras pagar y confirma en el aviso.";
-        note.hidden = false;
-    }
-}
-
-function intentarMostrarModalRetornoPago() {
-    if (esPremium()) return;
-    const token = sessionStorage.getItem(SESSION_MP_TOKEN);
-    if (!token || modalPagoMostrado) return;
-    const started = parseInt(sessionStorage.getItem(SESSION_MP_STARTED) || "0", 10);
-    if (Date.now() - started < 2000) return;
-    const modal = document.getElementById("modalPago");
-    if (!modal) return;
-    modal.hidden = false;
-    modalPagoMostrado = true;
-}
-
-function confirmarActivacionPremiumTrasPago() {
-    if (!sessionStorage.getItem(SESSION_MP_TOKEN)) {
-        alert("No hay una sesión de pago pendiente. Pulsa «Activar Premium» para iniciar el pago.");
-        return;
-    }
-    alert("¡Pago recibido! Activando premium…");
-    localStorage.setItem("premium", "true");
-    sessionStorage.removeItem(SESSION_MP_TOKEN);
-    sessionStorage.removeItem(SESSION_MP_STARTED);
-    modalPagoMostrado = false;
-    const modal = document.getElementById("modalPago");
-    if (modal) modal.hidden = true;
-    const note = document.getElementById("paymentSessionNote");
-    if (note) note.hidden = true;
-    actualizarUI();
-    mostrarMensajeExito("Premium activo. Gracias por tu compra.");
-}
-
-function cancelarActivacionPremiumPendiente() {
-    sessionStorage.removeItem(SESSION_MP_TOKEN);
-    sessionStorage.removeItem(SESSION_MP_STARTED);
-    modalPagoMostrado = false;
-    const modal = document.getElementById("modalPago");
-    if (modal) modal.hidden = true;
-}
-
-function restaurarCompra() {
-    if (esPremium()) {
-        actualizarUI();
-        mostrarMensajeExito("Tu Premium ya está activo en este dispositivo.");
-        alert("Tu compra Premium ya está restaurada en este navegador.");
-    } else {
-        alert(
-            "No hay una compra Premium activa en este navegador.\n\nSi ya pagaste, pulsa «Activar Premium», completa el pago en Mercado Pago y al volver confirma en el modal."
-        );
-    }
 }
 
 function mostrarMensajeExito(texto) {
@@ -165,51 +84,18 @@ function mostrarMensajeError(texto, ms) {
 }
 
 function actualizarUI() {
-    const premium = esPremium();
-    document.body.classList.toggle("is-premium", premium);
-
-    const adTop = document.getElementById("adTopBanner");
-    if (premium) {
-        const ad = document.querySelector(".ad");
-        if (ad) ad.style.display = "none";
-        if (adTop) adTop.style.display = "none";
-    } else {
-        const ad = document.querySelector(".ad");
-        if (ad) ad.style.display = "block";
-        if (adTop) adTop.style.display = "flex";
-        const paymentBanner = document.getElementById("paymentBanner");
-        if (paymentBanner) paymentBanner.style.display = "block";
-    }
-
-    const hintPdf = document.getElementById("hintPdfGratis");
-    if (hintPdf) hintPdf.style.display = premium ? "none" : "";
-
     const hintIA = document.getElementById("hintIA");
     if (hintIA) {
-        hintIA.textContent = premium
-            ? "Puedes usar la IA con o sin API Key (sin clave se usa texto simulado)."
-            : "La IA requiere versión Premium.";
+        hintIA.textContent =
+            "Puedes usar la IA con o sin API Key (sin clave se usa texto simulado).";
     }
 
     const btnIA = document.getElementById("btnGenerarIA");
     if (btnIA) {
-        btnIA.classList.toggle("btn-disabled", !premium);
-        if (premium) {
-            btnIA.removeAttribute("aria-disabled");
-        } else {
-            btnIA.setAttribute("aria-disabled", "true");
-        }
+        btnIA.classList.remove("btn-disabled");
+        btnIA.removeAttribute("aria-disabled");
     }
 }
-
-document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") {
-        intentarMostrarModalRetornoPago();
-    }
-});
-window.addEventListener("focus", function () {
-    intentarMostrarModalRetornoPago();
-});
 
 function el(id) {
     return document.getElementById(id);
@@ -544,17 +430,8 @@ function canvasAMultipaginaPDF(canvas, doc, opciones) {
     const srcH = canvas.height;
     const fullImgHmm = (pdfImgW * srcH) / srcW;
 
-    function pieDePaginaGratis() {
-        if (!opciones.premium) {
-            doc.setFontSize(8);
-            doc.setTextColor(130, 130, 130);
-            doc.text("CV Studio — Versión gratuita", margin, pageH - 4);
-        }
-    }
-
     if (fullImgHmm <= usableH + 0.35) {
         doc.addImage(canvas.toDataURL("image/png"), "PNG", margin, margin, pdfImgW, fullImgHmm);
-        pieDePaginaGratis();
         return;
     }
 
@@ -579,7 +456,6 @@ function canvasAMultipaginaPDF(canvas, doc, opciones) {
             doc.addPage();
         }
         doc.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, margin, pdfImgW, sliceHmmDraw);
-        pieDePaginaGratis();
 
         yPx += slicePx;
         numPagina++;
@@ -726,11 +602,6 @@ async function llamarOpenAIPerfil(apiKey, userPrompt) {
 }
 
 async function generarPerfilIA() {
-    if (!esPremium()) {
-        alert("Solo disponible en versión Premium.");
-        return;
-    }
-
     const experiencia = el("experiencia").value.trim();
     const habilidades = el("habilidades").value.trim();
     if (!experiencia && !habilidades) {
@@ -811,8 +682,6 @@ function descargarPDF() {
 
     window.setTimeout(function () {
         const snap = prepararPreviewParaCaptura(preview);
-        const premium = esPremium();
-        const footerMm = premium ? 0 : PDF_FOOTER_FREE_MM;
 
         html2canvas(preview, {
             scale: PDF_SCALE,
@@ -824,10 +693,9 @@ function descargarPDF() {
                 const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
                 canvasAMultipaginaPDF(canvas, doc, {
                     marginMm: PDF_MARGIN_MM,
-                    footerReserveMm: footerMm,
-                    premium: premium,
+                    footerReserveMm: 0,
                 });
-                doc.save(premium ? "CV-Studio-Premium.pdf" : "CV-Studio.pdf");
+                doc.save("CV-Studio.pdf");
                 mostrarMensajeExito("PDF generado correctamente.");
             })
             .catch(function (err) {
@@ -870,7 +738,6 @@ function aplicarCvDesdeObjeto(data, opciones) {
     if (!data || typeof data !== "object") {
         return;
     }
-    const persistPremium = o.persistPremium !== false;
     const skipGenerar = o.skipGenerar === true;
 
     if (el("nombre")) el("nombre").value = data.nombre || "";
@@ -889,88 +756,16 @@ function aplicarCvDesdeObjeto(data, opciones) {
     if (el("plantilla")) el("plantilla").value = plantilla;
     sincronizarAriaPlantillas(plantilla);
 
-    if (persistPremium) {
-        if (data.premium === "true") {
-            localStorage.setItem("premium", "true");
-        } else if (data.premium === "false") {
-            localStorage.removeItem("premium");
-        }
-    }
-
     actualizarUI();
     if (!skipGenerar) {
         generarCV(true);
     }
 }
 
-function exportarBorradorJSON() {
-    try {
-        const payload = {
-            schemaVersion: EXPORT_JSON_VERSION,
-            exportedAt: new Date().toISOString(),
-            app: "CV Studio",
-            data: recogerDatosCv(),
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "cv-studio-borrador.json";
-        a.rel = "noopener";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.setTimeout(function () {
-            URL.revokeObjectURL(url);
-        }, 4000);
-        mostrarMensajeExito("JSON exportado.");
-    } catch (e) {
-        console.error(e);
-        mostrarMensajeError("No se pudo exportar el archivo.");
-    }
-}
-
-function dispararImportarJSON() {
-    const inp = el("inputImportJson");
-    if (inp) inp.click();
-}
-
-function importarBorradorJSON(e) {
-    const target = e && e.target;
-    const file = target && target.files && target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function () {
-        try {
-            const json = JSON.parse(String(reader.result || ""));
-            const data = json.data && typeof json.data === "object" ? json.data : json;
-            if (!data || typeof data !== "object") {
-                throw new Error("Raíz inválida");
-            }
-            if (json.schemaVersion && Number(json.schemaVersion) > EXPORT_JSON_VERSION) {
-                mostrarMensajeError("El archivo es de una versión más nueva que esta aplicación.");
-                return;
-            }
-            aplicarCvDesdeObjeto(data, { persistPremium: false });
-            mostrarMensajeExito("Borrador importado desde JSON.");
-        } catch (err) {
-            console.error(err);
-            mostrarMensajeError("No se pudo leer el JSON. Revisa el formato.");
-        } finally {
-            if (target) target.value = "";
-        }
-    };
-    reader.onerror = function () {
-        mostrarMensajeError("Error al leer el archivo.");
-        if (target) target.value = "";
-    };
-    reader.readAsText(file, "UTF-8");
-}
-
 function limpiarFormularioCompleto() {
     if (
         !confirm(
-            "¿Vaciar todos los campos y la vista previa? No cambia Premium ni el borrador en localStorage hasta que pulses Guardar de nuevo."
+            "¿Vaciar todos los campos y la vista previa? El borrador en localStorage no cambia hasta que pulses Guardar de nuevo."
         )
     ) {
         return;
@@ -1036,7 +831,7 @@ function alternarTema() {
 }
 
 function guardarCV() {
-    const data = Object.assign({}, recogerDatosCv(), { premium: esPremium() ? "true" : "false" });
+    const data = Object.assign({}, recogerDatosCv());
     localStorage.setItem(STORAGE_CV, JSON.stringify(data));
     mostrarMensajeExito("Borrador guardado en este navegador.");
 }
@@ -1058,7 +853,7 @@ function cargarCV() {
         alert("Datos no válidos.");
         return;
     }
-    aplicarCvDesdeObjeto(data, { persistPremium: true });
+    aplicarCvDesdeObjeto(data);
     mostrarMensajeExito("Borrador cargado.");
 }
 
@@ -1085,31 +880,19 @@ function cargarEjemploCV() {
 
 document.addEventListener("DOMContentLoaded", function () {
     aplicarTemaInicial();
+    try {
+        localStorage.removeItem("premium");
+        sessionStorage.removeItem("cv_mp_token");
+        sessionStorage.removeItem("cv_mp_started");
+    } catch (_) {}
     const y = el("footerYear");
     if (y) y.textContent = String(new Date().getFullYear());
     actualizarUI();
 
-    document.addEventListener("keydown", function (e) {
-        if (e.key !== "Escape") return;
-        const modal = el("modalPago");
-        if (modal && !modal.hidden) {
-            e.preventDefault();
-            cancelarActivacionPremiumPendiente();
-        }
-    });
-
     const btnIA = el("btnGenerarIA");
     if (btnIA) {
         btnIA.addEventListener("click", function () {
-            if (!esPremium()) {
-                alert("Solo disponible en versión Premium.");
-                return;
-            }
             generarPerfilIA();
         });
     }
-
-    window.setTimeout(function () {
-        intentarMostrarModalRetornoPago();
-    }, 400);
 });

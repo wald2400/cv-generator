@@ -1,6 +1,6 @@
 # CV Studio
 
-Sitio estático para crear un currículum en el navegador, previsualizarlo y descargarlo en **PDF multipágina** (html2canvas + jsPDF). Incluye tres plantillas (Editorial, Corporativo, Minimal), borrador en **localStorage** y flujo **Premium** simulado con Mercado Pago (sin backend: confirmación manual en modal).
+Sitio estático para crear un currículum en el navegador, previsualizarlo y descargarlo en **PDF multipágina** (html2canvas + jsPDF). Incluye tres plantillas (Editorial, Corporativo, Minimal), borrador en **localStorage**, **IA opcional** (OpenAI con tu clave) y un **enlace de donación** a Mercado Pago (voluntario; no desbloquea funciones).
 
 ## Requisitos
 
@@ -34,28 +34,28 @@ También puedes abrir `index.html` directamente; algunos navegadores restringen 
 
 Tras el despliegue, actualiza en `index.html` las meta **Open Graph** (`og:url`, `og:image`) y los archivos **`robots.txt`** y **`sitemap.xml`** (sustituye `TU-DOMINIO.com`). Si publicas en una **subruta** (p. ej. GitHub Pages `usuario.github.io/repo/`), ajusta también `start_url` en `site.webmanifest`.
 
-## Qué personalizar antes de monetizar
+## Qué personalizar antes de publicar
 
 | Qué | Dónde |
 |-----|--------|
-| Enlace de pago Mercado Pago | `script.js` → `MERCADOPAGO_URL` |
+| Enlace de donación Mercado Pago | `script.js` → `MERCADOPAGO_URL` (y enlaces equivalentes en `index.html` si los duplicas) |
 | Google AdSense u otra red | `index.html` → bloques comentados / enlaces de fallback |
 | Textos legales (responsable, país, contacto) | `legal.html` |
 | Marca / dominio / redes | `index.html` (footer, `site.webmanifest`) |
 
-**Importante:** el Premium actual es **solo en el cliente**; cualquier usuario avanzado puede alterar `localStorage`. Para cobro verificable necesitas backend o la API de Mercado Pago con webhooks.
+**Importante:** la donación es **solo apoyo**. No hay backend en esta demo que verifique pagos ni active planes; todas las funciones del generador están disponibles sin donar.
 
 ---
 
-## Roadmap: Premium verificado + legal (producción seria)
+## Roadmap: pagos verificables + legal (producción seria)
 
-Esta sección es una **guía de arquitectura** para cuando quieras dejar de depender del modal de confirmación y de `localStorage` como única prueba de pago.
+Esta sección es una **guía de arquitectura** para cuando quieras cobrar por funciones o registrar donaciones con **prueba en servidor** (en lugar de solo enlazar a Mercado Pago desde el front).
 
-### Por qué no basta el front actual
+### Por qué no basta solo el enlace en el front
 
-- El navegador lo controla el usuario: puede poner `localStorage.premium = "true"` sin pagar.
+- El navegador lo controla el usuario: cualquier “flag” en `localStorage` puede alterarse sin reflejar un pago real.
 - Mercado Pago solo **garantiza** el cobro si tu sistema **recibe y valida** la notificación en un servidor que tú controlas (webhook o consulta server-side a la API de pagos).
-- Cualquier flujo “pulso Sí después de pagar” sin backend es **UX simulada**, no facturación verificable.
+- Un flujo “pagué y ya” sin backend es **UX honesta como donación**, no facturación verificable ni control de acceso.
 
 ### Flujo recomendado (alto nivel)
 
@@ -66,7 +66,7 @@ sequenceDiagram
     participant API as Tu backend
     participant MP as Mercado Pago
 
-    U->>FE: Activar Premium
+    U->>FE: Iniciar pago (checkout / plan)
     FE->>API: POST /api/checkout
     Note over API: Crea preferencia o link de pago con external_reference
     API->>MP: API REST Mercado Pago
@@ -143,8 +143,8 @@ Tabla `users` solo si más adelante añades cuentas; si no, puedes vincular por 
 
 ### Cambios en este repo (front) cuando tengas API
 
-1. Sustituir `activarPremium()` para que llame a `POST /api/checkout` y redirija a la URL devuelta por tu backend (no hardcodear solo `mpago.la/...` si quieres trazabilidad por usuario).
-2. Sustituir el modal “¿pagaste?” por: **polling** corto a `/api/premium-status`, o redirect con query firmada (`?checkout=ok&sid=...`) que el backend valide una sola vez.
+1. Sustituir el enlace estático de donación (`MERCADOPAGO_URL` y duplicados en HTML) por un flujo que llame a `POST /api/checkout` y redirija a la URL devuelta por tu backend (así puedes guardar `external_reference` por usuario o sesión).
+2. Tras el pago, usar **polling** corto a `/api/premium-status`, o un redirect con query firmada (`?checkout=ok&sid=...`) que el backend valide una sola vez (en lugar de confiar en confirmación manual en el navegador).
 3. Guardar en el cliente solo un **token de sesión** (idealmente en **cookie httpOnly** emitida por tu API en el mismo dominio o subdominio API) o JWT de corta vida; el flag `premium` en `localStorage` puede ser **caché** renovable, no la fuente de verdad.
 4. CORS: permite en el backend solo `FRONTEND_URL`.
 
@@ -153,7 +153,7 @@ Tabla `users` solo si más adelante añades cuentas; si no, puedes vincular por 
 Haz revisar por **abogado** según tu país y tipo de cliente (B2C UE tiene requisitos extra, p. ej. desistimiento en algunos bienes digitales).
 
 - **Privacidad / cookies**: si usas AdSense, analítica o login, actualiza `legal.html` y un banner de cookies si aplica.
-- **Condiciones de venta**: qué incluye Premium, duración, reembolsos, idioma y jurisdicción.
+- **Condiciones de venta o donación**: qué ofreces (planes, extras), duración, reembolsos, idioma y jurisdicción.
 - **Pagos**: indicar que el cobro lo procesa **Mercado Pago** y enlazar a sus términos.
 - **Propiedad del contenido**: el usuario es responsable del texto de su CV.
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Crea y descarga tu currículum en PDF: plantillas profesionales, vista previa y opción Premium sin marcas.">
+    <meta name="description" content="Crea y descarga tu currículum en PDF: plantillas profesionales, vista previa, IA opcional y donación voluntaria vía Mercado Pago.">
     <meta name="theme-color" content="#0f172a">
     <meta name="author" content="[Tu nombre] — Proyecto final CV Studio">
     <meta property="og:title" content="CV Studio — Currículum en PDF">
@@ -38,37 +38,41 @@
         </div>
     </div>
     <span class="navbar__spacer" aria-hidden="true"></span>
-    <span id="badgePremium" class="badge-premium" title="Suscripción activa">Premium</span>
     <div class="navbar__actions">
         <button type="button" class="navbar__btn-theme" id="btnTema" onclick="alternarTema()" title="Cambiar tema claro / oscuro" aria-label="Alternar tema claro u oscuro">◐</button>
         <button type="button" class="navbar__btn-ejemplo" onclick="cargarEjemploCV()">Ver ejemplo</button>
-        <button type="button" class="navbar__btn-secondary" onclick="restaurarCompra()">Restaurar compra</button>
+        <button type="button" class="navbar__btn-secondary" onclick="abrirDonacionMercadoPago()" title="Abre Mercado Pago en una pestaña nueva">Donar</button>
         <button type="button" onclick="guardarCV()">Guardar borrador</button>
         <button type="button" onclick="cargarCV()">Cargar borrador</button>
     </div>
 </nav>
+<div class="credit-bar" role="note" aria-label="Crédito del equipo">
+    <span class="credit-bar__inner">
+        <span class="credit-bar__by">Hecho por</span>
+        <span class="credit-bar__team">52sec</span>
+    </span>
+</div>
 </header>
 
-<div id="adTopBanner" class="ad-top" aria-label="Publicidad">
-    <span class="ad-top__tag">Publicidad</span>
+<div id="adTopBanner" class="ad-top" aria-label="Espacio publicitario">
     <!-- Google AdSense (descomenta con tu ca-pub y slot aprobados):
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
     <ins class="adsbygoogle" style="display:inline-block;width:728px;height:90px" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="YYYYYYYYYY"></ins>
     <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
     -->
-    <a href="https://www.google.com/intl/es_es/adsense/start/" class="ad-top__fallback" target="_blank" rel="noopener noreferrer">
-        <span class="ad-top__headline">Espacio publicitario (728×90)</span>
-        <span class="ad-top__sub">Sustituye por tu unidad AdSense u otra red cuando esté aprobada.</span>
-    </a>
+    <div class="ad-placeholder ad-top__slot" role="img" aria-label="Insertar publicidad">Insertar publicidad</div>
 </div>
 
-<div id="paymentBanner" class="payment-banner">
-    <p class="payment-banner__text"><strong>Premium</strong> — PDF sin marca de agua, sin banners y perfil con IA. Pago con Mercado Pago (ej. oferta simbólica); al volver, confirma la activación.</p>
-    <p class="payment-banner__note" id="paymentSessionNote" hidden></p>
-    <div class="payment-banner__buttons">
-        <button type="button" class="btn-pay btn-pay--activar" onclick="activarPremium()">Activar Premium</button>
+<div id="donationBanner" class="donation-banner" role="region" aria-label="Apoyo al proyecto">
+    <p class="donation-banner__text">Puedes invitarnos un café con una donación voluntaria por Mercado Pago.</p>
+    <div class="donation-banner__buttons">
+        <button type="button" class="btn-donate" onclick="abrirDonacionMercadoPago()" aria-label="Apoyar con donación en Mercado Pago">
+            <span class="btn-donate__emoji" aria-hidden="true">☕</span>
+            <span class="btn-donate__label">¡Apóyanos con $5 MXN!</span>
+            <span class="btn-donate__heart" aria-hidden="true">♥</span>
+        </button>
     </div>
-    <p class="payment-banner__legal">Sin servidor propio: se usa un token de sesión en el navegador. Si no confirmas el pago, no se activa Premium.</p>
+    <p class="donation-banner__legal">El pago lo gestiona Mercado Pago. Este sitio no recibe confirmación de servidor; la donación es solo un gesto de apoyo.</p>
 </div>
 
 <main id="contenido-principal" class="container" tabindex="-1">
@@ -111,48 +115,14 @@
             <label class="field-label" for="masInformacion">Información adicional (opcional)</label>
             <textarea id="masInformacion" rows="2" placeholder="Carné, disponibilidad, certificaciones… (visible en plantilla Editorial)."></textarea>
 
+            <label class="field-label" for="foto">Foto (opcional)</label>
+            <input type="file" id="foto" accept="image/*">
+
             <div class="ia-block">
                 <label class="field-label" for="apiKey">OpenAI (opcional)</label>
                 <input type="password" id="apiKey" placeholder="API Key (solo en tu navegador)" autocomplete="off" spellcheck="false">
                 <button type="button" id="btnGenerarIA" class="btn-ia">Generar perfil con IA</button>
-                <p class="hint hint--ia" id="hintIA">La IA requiere versión Premium.</p>
-            </div>
-
-            <label class="field-label" for="foto">Foto (opcional)</label>
-            <input type="file" id="foto" accept="image/*">
-
-            <h3 class="h3-templates" id="plantillasTitulo">Plantilla</h3>
-            <p class="hint hint--templates">Nombres descriptivos: el PDF respeta el alto completo (varias páginas si hace falta).</p>
-            <div class="plantillas" role="radiogroup" aria-labelledby="plantillasTitulo">
-                <button type="button" class="plantilla activa" data-tipo="editorial" aria-pressed="true" onclick="seleccionarPlantilla('editorial', this)">
-                    <span class="plantilla__name">Editorial</span>
-                    <span class="plantilla__meta">Dos columnas · barra de acento</span>
-                </button>
-                <button type="button" class="plantilla" data-tipo="corporate" aria-pressed="false" onclick="seleccionarPlantilla('corporate', this)">
-                    <span class="plantilla__name">Corporativo</span>
-                    <span class="plantilla__meta">Sidebar · barras de habilidad</span>
-                </button>
-                <button type="button" class="plantilla" data-tipo="minimal" aria-pressed="false" onclick="seleccionarPlantilla('minimal', this)">
-                    <span class="plantilla__name">Minimal</span>
-                    <span class="plantilla__meta">Monocromo · líneas limpias</span>
-                </button>
-            </div>
-            <input type="hidden" id="plantilla" value="editorial">
-
-            <h3>Imagen propia (opcional)</h3>
-            <p class="hint">Si subes una imagen de plantilla, sustituye al diseño generado.</p>
-            <input type="file" id="plantillaCustom" accept="image/*">
-
-            <div class="form-toolbar">
-                <button type="button" class="btn-toolbar" onclick="exportarBorradorJSON()" aria-label="Exportar borrador como archivo JSON">Exportar JSON</button>
-                <button type="button" class="btn-toolbar" onclick="dispararImportarJSON()" aria-label="Importar borrador desde archivo JSON">Importar JSON</button>
-                <button type="button" class="btn-toolbar btn-toolbar--danger" onclick="limpiarFormularioCompleto()" aria-label="Vaciar todos los campos del formulario">Limpiar todo</button>
-                <input type="file" id="inputImportJson" class="visually-hidden" accept="application/json,.json" aria-hidden="true" tabindex="-1">
-            </div>
-
-            <div class="form-actions">
-                <button type="button" class="btn-primary" onclick="generarCV()">Actualizar vista</button>
-                <button type="button" class="btn-secondary" onclick="vistaPreviaCV()">Vista previa</button>
+                <p class="hint hint--ia" id="hintIA">Puedes usar la IA con o sin API Key (sin clave se usa texto simulado).</p>
             </div>
         </section>
 
@@ -162,16 +132,45 @@
             <div id="announcerPreview" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
             <div id="preview" class="preview" role="region" aria-label="Resultado del currículum">Completa los datos y pulsa «Actualizar vista».</div>
             <button type="button" id="btnDescargarPdf" class="btn-primary btn-primary--pdf" onclick="descargarPDF()">Descargar PDF</button>
-            <p class="hint" id="hintPdfGratis">Gratis: pie de página en el PDF. Premium lo elimina y quita la publicidad de la web.</p>
+            <p class="hint" id="hintPdfGratis">El PDF se genera en tu navegador (A4, varias páginas si hace falta). Los bloques de publicidad no se incluyen en el archivo.</p>
+
+            <div class="preview-controls">
+                <h3 class="h3-templates" id="plantillasTitulo">Plantilla</h3>
+                <p class="hint hint--templates">Nombres descriptivos: el PDF respeta el alto completo (varias páginas si hace falta).</p>
+                <div class="plantillas" role="radiogroup" aria-labelledby="plantillasTitulo">
+                    <button type="button" class="plantilla activa" data-tipo="editorial" aria-pressed="true" onclick="seleccionarPlantilla('editorial', this)">
+                        <span class="plantilla__name">Editorial</span>
+                        <span class="plantilla__meta">Dos columnas · barra de acento</span>
+                    </button>
+                    <button type="button" class="plantilla" data-tipo="corporate" aria-pressed="false" onclick="seleccionarPlantilla('corporate', this)">
+                        <span class="plantilla__name">Corporativo</span>
+                        <span class="plantilla__meta">Sidebar · barras de habilidad</span>
+                    </button>
+                    <button type="button" class="plantilla" data-tipo="minimal" aria-pressed="false" onclick="seleccionarPlantilla('minimal', this)">
+                        <span class="plantilla__name">Minimal</span>
+                        <span class="plantilla__meta">Monocromo · líneas limpias</span>
+                    </button>
+                </div>
+                <input type="hidden" id="plantilla" value="editorial">
+
+                <h3>Imagen propia (opcional)</h3>
+                <p class="hint">Si subes una imagen de plantilla, sustituye al diseño generado.</p>
+                <input type="file" id="plantillaCustom" accept="image/*">
+
+                <div class="form-toolbar">
+                    <button type="button" class="btn-toolbar btn-toolbar--danger" onclick="limpiarFormularioCompleto()" aria-label="Vaciar todos los campos del formulario">Limpiar todo</button>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-primary" onclick="generarCV()">Actualizar vista</button>
+                    <button type="button" class="btn-secondary" onclick="vistaPreviaCV()">Vista previa</button>
+                </div>
+            </div>
         </section>
     </div>
 
-    <div id="adSlot" class="ad">
-        <span class="ad__label">Publicidad</span>
-        <a href="https://www.amazon.com.mx/" class="ad__banner" target="_blank" rel="noopener noreferrer sponsored">
-            <span class="ad__banner-title">Espacio reservado — sustituye por tu enlace de afiliado o red</span>
-            <span class="ad__banner-meta">728 × 90</span>
-        </a>
+    <div id="adSlot" class="ad" aria-label="Espacio publicitario">
+        <div class="ad-placeholder ad__slot" role="img" aria-label="Insertar publicidad">Insertar publicidad</div>
     </div>
 </main>
 
@@ -181,22 +180,12 @@
         <span class="site-footer__sep" aria-hidden="true">·</span>
         <a href="legal.html">Privacidad y avisos</a>
         <span class="site-footer__sep" aria-hidden="true">·</span>
+        <a href="https://mpago.la/2681dcq" target="_blank" rel="noopener noreferrer">Donar (Mercado Pago)</a>
+        <span class="site-footer__sep" aria-hidden="true">·</span>
         <a href="index.html">Inicio</a>
     </nav>
     <p class="site-footer__copy"><span id="footerYear">2026</span> · CV Studio · Tus datos se guardan en este navegador (localStorage) hasta que borres el sitio o el navegador.</p>
 </footer>
-
-<div id="modalPago" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalPagoTitulo" hidden>
-    <div class="modal__backdrop" role="presentation" tabindex="-1" onclick="cancelarActivacionPremiumPendiente()"></div>
-    <div class="modal__box" onclick="event.stopPropagation()">
-        <h3 id="modalPagoTitulo" class="modal__title">¿Completaste el pago?</h3>
-        <p class="modal__text">Si el cobro en Mercado Pago terminó correctamente, confirma aquí. Si aún no, cancela: no se activará Premium.</p>
-        <div class="modal__actions">
-            <button type="button" class="btn-pay btn-pay--activar" onclick="confirmarActivacionPremiumTrasPago()">Confirmar y activar Premium</button>
-            <button type="button" class="btn-pay btn-pay--ghost" onclick="cancelarActivacionPremiumPendiente()">Cancelar</button>
-        </div>
-    </div>
-</div>
 
 <div id="msgExito" class="msg-exito" role="status" aria-live="polite" hidden></div>
 <div id="msgError" class="msg-error" role="alert" aria-live="assertive" hidden></div>
